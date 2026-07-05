@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kandy PM2.5 Explorer · 2019–2023</title>
+  <meta name="description" content="Interactive 1 km hourly PM2.5 fields for Kandy, Sri Lanka (2019–2023): heatmap, terrain wind, uncertainty, background/local decomposition, exposure and documented haze episodes." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="loading"><div class="spinner"></div><span>Loading Kandy fields…</span></div>
+
+  <header>
+    <div class="title-wrap">
+      <h1>Kandy PM<sub>2.5</sub> Explorer</h1>
+      <span class="years">2019 – 2023</span>
+    </div>
+    <div class="header-right">
+      <a href="method.html" class="method-link">Method &amp; integrity</a>
+    </div>
+  </header>
+
+  <div id="banner">
+    <span>⚠︎ Research model — anchored level, scenario-grade fine spatial pattern.
+    No public real-time monitor exists in Kandy.</span>
+    <a href="method.html">Read how it works →</a>
+  </div>
+
+  <main>
+    <section class="map-col">
+      <div id="map-title" class="map-title"></div>
+      <div id="mapstack" class="mapstack"></div>
+      <div class="colourbar-wrap">
+        <canvas id="colourbar" width="260" height="14"></canvas>
+        <div id="cb-ticks" class="cb-ticks"></div>
+        <div class="cb-label">PM₂.₅ (µg m⁻³) · <span id="cb-tag">adaptive</span></div>
+      </div>
+
+      <div class="controls">
+        <button id="prev" title="Previous hour (←)">⏮</button>
+        <button id="play" title="Play / pause (space)">▶</button>
+        <button id="next" title="Next hour (→)">⏭</button>
+        <label class="tog"><input type="checkbox" id="uq" /> 90% upper bound</label>
+        <span class="spacer"></span>
+        <label class="tog"><input type="checkbox" id="layer-roads" checked /> roads</label>
+        <label class="tog"><input type="checkbox" id="layer-water" checked /> water</label>
+        <label class="tog"><input type="checkbox" id="layer-emission" checked /> emission</label>
+        <label class="tog"><input type="checkbox" id="layer-landmarks" checked /> labels</label>
+      </div>
+
+      <div class="download-row">
+        <span class="ep-label">Download:</span>
+        <button id="dl-png" class="dl-btn">PNG map</button>
+        <button id="dl-csv" class="dl-btn">field CSV</button>
+        <button id="dl-point" class="dl-btn" disabled>point series CSV</button>
+      </div>
+
+      <div class="episodes-row">
+        <span class="ep-label">Documented episodes:</span>
+        <span id="episodes"></span>
+      </div>
+      <div id="episode-card" class="episode-card"></div>
+    </section>
+
+    <aside class="rail">
+      <div class="panel">
+        <h3>Decomposition</h3>
+        <canvas id="decomp-canvas" width="240" height="150"></canvas>
+        <p id="decomp-note" class="note"></p>
+      </div>
+      <div class="panel">
+        <h3>Diurnal cycle · this day</h3>
+        <canvas id="diurnal-canvas" width="240" height="150"></canvas>
+        <p id="diurnal-note" class="note"></p>
+      </div>
+      <div class="panel" id="point-panel">
+        <h3>Point query <span class="hint">click the map</span></h3>
+        <div id="point-body" class="kv"></div>
+      </div>
+      <div class="panel">
+        <h3>Exposure &amp; health · <span id="health-year"></span></h3>
+        <div id="health-body" class="kv"></div>
+      </div>
+    </aside>
+  </main>
+
+  <div class="timeline-wrap">
+    <canvas id="timeline" width="1100" height="66"></canvas>
+  </div>
+
+  <footer>
+    <div id="integrity-text" class="integrity"></div>
+    <div id="credits" class="credits"></div>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
