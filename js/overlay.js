@@ -22,7 +22,10 @@ export class Overlay {
 
   draw() {
     const ctx = this.ctx, W = this.canvas.width, H = this.canvas.height;
-    const k = W / 620;                       // stroke/font scale vs design size
+    // Scale strokes/labels by the DISPLAYED size, not the internal resolution, so
+    // text stays readable when the map renders small (phones).
+    const rect = this.canvas.getBoundingClientRect();
+    const k = rect.width > 40 ? W / rect.width : W / 620;
     ctx.clearRect(0, 0, W, H);
     if (!this.layers) return;
     const L = this.layers;

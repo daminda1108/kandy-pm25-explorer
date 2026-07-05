@@ -105,6 +105,28 @@
     2019–2023, the same period the explorer serves. Health figures use the GEMM
     exposure-response function and are always shown with their 95% interval.</p>
 
+    <h2>Where the map puts the highest values</h2>
+    <p>The readouts distinguish the <b>city centre</b> (the fixed grid cell over central
+    Kandy) from the <b>peak</b> (wherever the highest value sits that hour). They often
+    differ, and the difference is physics rather than noise:</p>
+    <ul>
+      <li><b>Rush hours</b>: emission timing and a shallow morning boundary layer
+        concentrate the local increment near the centre, which then usually holds the
+        peak.</li>
+      <li><b>Midday</b>: deep convective mixing flattens the field. Differences between
+        centre and basin shrink to a fraction of a µg/m³, well inside the interval, so
+        their ordering carries no information at those hours.</li>
+      <li><b>Night</b>: terrain drainage (katabatic flow) can carry the accumulated local
+        increment down-valley, so the night-time maximum may sit away from the centre.
+        This displacement is a direct prediction of the wind model, not an artefact.</li>
+      <li><b>Haze events</b>: the elevated regional background covers the whole basin
+        uniformly by construction; the model never concentrates transported background
+        into the city core. What does concentrate is the locally-generated increment,
+        because the same calm, shallow-boundary-layer conditions that let regional haze
+        linger also trap local emissions. The decomposition panel separates the two parts
+        for any hour.</li>
+    </ul>
+
     <h2>Documented events</h2>
     <p>Three documented Kandy haze events are provided as presets: November 2019,
     December 2022 (island-wide advisories) and February–March 2023 (inter-monsoon). The

@@ -99,7 +99,7 @@ export class Store {
     const B = s.B[gi], T = s.T[gi], T05 = s.T05[gi], T95 = s.T95[gi];
     const q50 = new Float32Array(npx), q05 = new Float32Array(npx),
           q95 = new Float32Array(npx), P = new Float32Array(npx);
-    let s50 = 0, s05 = 0, s95 = 0;
+    let s50 = 0, s05 = 0, s95 = 0, pkI = 0;
     for (let i = 0; i < npx; i++) {
       const p = pmin + month.rows[off + i] / 65535 * span;
       P[i] = p;
@@ -107,9 +107,13 @@ export class Store {
       q05[i] = Math.max(B + (T05 - B) * p, 0);
       q95[i] = Math.max(B + (T95 - B) * p, 0);
       s50 += q50[i]; s05 += q05[i]; s95 += q95[i];
+      if (q50[i] > q50[pkI]) pkI = i;
     }
     const cp = this.corePix;
-    return { q50, q05, q95, P, B, T, T05, T95, gi, year,
+    const g = this.meta.grid;
+    const peak = { v: q50[pkI], lo: q05[pkI], hi: q95[pkI],
+                   lat: g.lats[Math.floor(pkI / g.n_lon)], lon: g.lons[pkI % g.n_lon] };
+    return { q50, q05, q95, P, B, T, T05, T95, gi, year, peak,
              bLo: s.B_lo[gi], bHi: s.B_hi[gi],
              basin: s.basin[gi], core: s.core[gi],
              basin05: s05 / npx, basin95: s95 / npx,

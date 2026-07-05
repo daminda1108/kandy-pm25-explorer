@@ -19,19 +19,17 @@
 
   <header>
     <div class="title-wrap">
-      <h1>Kandy PM<sub>2.5</sub> Explorer</h1>
+      <div>
+        <h1>Kandy PM<sub>2.5</sub> Explorer</h1>
+        <p class="subtitle">Research reconstruction · annual level anchored to satellite data ·
+          street-scale pattern is physics-based and indicative</p>
+      </div>
       <span class="years">2019 – 2023</span>
     </div>
     <div class="header-right">
       <a href="method.html" class="method-link">How it works</a>
     </div>
   </header>
-
-  <div id="banner">
-    <span>Research reconstruction — the annual level is anchored to satellite data;
-    the street-scale pattern is physics-based and indicative.</span>
-    <a href="method.html">Method →</a>
-  </div>
 
   <div class="datetime-bar">
     <span class="dt-label">Date &amp; time</span>
@@ -55,8 +53,10 @@
 
       <div class="map-foot">
         <div class="colourbar-wrap">
-          <canvas id="colourbar" width="260" height="12"></canvas>
-          <div id="cb-ticks" class="cb-ticks"></div>
+          <div class="cb-box">
+            <canvas id="colourbar" width="260" height="12"></canvas>
+            <div id="cb-ticks" class="cb-ticks"></div>
+          </div>
           <div class="cb-label">PM<sub>2.5</sub> (µg/m³) · <span id="cb-tag">adaptive</span></div>
         </div>
         <div class="seg" role="group" aria-label="Colour scale">

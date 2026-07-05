@@ -135,10 +135,21 @@ function render(f) {
   const month = ltDate(f.tsUTC).getUTCMonth() + 1;
   const lh = ltDate(f.tsUTC).getUTCHours();
   $('#map-title').innerHTML =
-    `<b>${day} ${hm}</b> <span class="dim">Sri Lanka time</span> · ${seasonOf(month)}, ${daypart(lh)}`
+    `<b>${day} ${hm}</b> · ${seasonOf(month)}, ${daypart(lh)}`
     + `<span class="readout">basin ${fmtCI(f.basin, f.basin05, f.basin95)} · `
-    + `core ${fmtCI(f.core, f.core05, f.core95)} µg/m³</span>`
+    + `centre ${fmtCI(f.core, f.core05, f.core95)} · `
+    + `peak ${fmtCI(f.peak.v, f.peak.lo, f.peak.hi)} µg/m³`
+    + ` <span class="dim">near ${nearLandmark(f.peak.lat, f.peak.lon)}</span></span>`
     + (state.showUQ ? ' <span class="uqtag">showing 90% upper bound</span>' : '');
+}
+
+function nearLandmark(lat, lon) {
+  let best = null, bd = 1e18;
+  for (const p of store.meta.landmarks) {
+    const d = (p.c[1] - lat) ** 2 + (p.c[0] - lon) ** 2;
+    if (d < bd) { bd = d; best = p.n; }
+  }
+  return best || 'the basin rim';
 }
 
 // ── date & time dropdowns ─────────────────────────────────────────────────────
@@ -206,6 +217,12 @@ function wireControls() {
     if (e.key === 'ArrowLeft') step(-1);
     else if (e.key === 'ArrowRight') step(1);
     else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+  });
+  // refit charts + colourbar on viewport changes (rotation, window resize)
+  let rsT = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(rsT);
+    rsT = setTimeout(() => { if (state.cur) { render(state.cur); updatePanels(state.cur); } }, 160);
   });
   $('#dl-png').addEventListener('click', () => state.cur && downloadPNG(store, state.cur));
   $('#dl-csv').addEventListener('click', () => state.cur && downloadFieldCSV(store, state.cur));

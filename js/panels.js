@@ -196,7 +196,7 @@ function drawDecomp(f) {
   const cv = $('#decomp-canvas');
   const { ctx, w: W, h: H } = fitCanvas(cv, panelW(cv), 108);
   ctx.clearRect(0, 0, W, H);
-  const rows = [['basin mean', B, localBasin], ['city core', B, localCore]];
+  const rows = [['basin mean', B, localBasin], ['city centre', B, localCore]];
   const maxv = Math.max(basin, core) * 1.18 + 1;
   const x0 = 78, bw = W - x0 - 46, bh = 20;
   rows.forEach(([lab, bg, loc], i) => {
