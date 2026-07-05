@@ -113,11 +113,15 @@ export class Store {
     const g = this.meta.grid;
     const peak = { v: q50[pkI], lo: q05[pkI], hi: q95[pkI],
                    lat: g.lats[Math.floor(pkI / g.n_lon)], lon: g.lons[pkI % g.n_lon] };
+    // basin/core readouts come from the CLAMPED field (mean of what the map
+    // shows), not the raw anchors: on the cleanest deep-night hours the raw
+    // T-anchor can dip slightly negative and the model's convention is a
+    // physical floor at 0 — readouts must match the rendered field.
     return { q50, q05, q95, P, B, T, T05, T95, gi, year, peak,
              bLo: s.B_lo[gi], bHi: s.B_hi[gi],
-             basin: s.basin[gi], core: s.core[gi],
-             basin05: s05 / npx, basin95: s95 / npx,
-             core05: q05[cp], core95: q95[cp],
+             basin: s50 / npx, core: q50[cp],
+             basin05: Math.min(s05, s50) / npx, basin95: Math.max(s95, s50) / npx,
+             core05: Math.min(q05[cp], q50[cp]), core95: Math.max(q95[cp], q50[cp]),
              u10: s.u10[gi], v10: s.v10[gi], blh: s.blh[gi],
              wspd: s.wspd[gi], wdir: s.wdir_from[gi],
              t2m: s.t2m ? s.t2m[gi] : NaN,
