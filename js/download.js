@@ -22,7 +22,7 @@ export function downloadPNG(store, field) {
   const lt = d.toISOString().slice(0, 16).replace('T', ' ');
   ctx.fillText(`Kandy PM2.5 · ${lt} LT · basin ${field.basin.toFixed(1)}, core ${field.core.toFixed(1)} µg/m³`, 10, H + 17);
   ctx.fillStyle = '#9aa8bd'; ctx.font = '10px Inter, sans-serif';
-  ctx.fillText('Research model (anchored level, scenario spatial pattern). Van Donkelaar V6 · ERA5 · WindNinja · OSM.', 10, H + 33);
+  ctx.fillText('Research reconstruction · anchored level · indicative spatial pattern. Van Donkelaar V6 · ERA5 · WindNinja · OSM.', 10, H + 33);
   trigger(out.toDataURL('image/png'), `kandy_pm25_${lt.replace(/[: ]/g, '')}.png`);
 }
 

@@ -2,10 +2,10 @@
 // Advects ~2000 particles on the 64x64 WindNinja field (the model's actual
 // mass-consistent flow: channelling, night katabatic drainage, day anabatic).
 
-const NP = 2200;
+const NP = 2600;
 const FADE = 0.90;          // trail persistence
 const LIFE = 90;            // frames before respawn
-const SPEED = 0.9;          // px per (m/s) per frame scale
+const SPEED = 1.15;         // px per (m/s) per frame scale (840px internal canvas)
 
 export class WindLayer {
   constructor(canvas) {
@@ -60,7 +60,7 @@ export class WindLayer {
     ctx.fillRect(0, 0, W, H);
     ctx.globalCompositeOperation = 'source-over';
     if (this.field) {
-      ctx.lineWidth = 1.1;
+      ctx.lineWidth = 1.4;
       for (const p of this.parts) {
         const [u, v] = this._sample(p.x, p.y);
         const spd = Math.hypot(u, v);

@@ -1,5 +1,7 @@
 // field.js — render the 16x16 PM field as a smooth heatmap over the hillshade,
-// with WHO-scale colour and the episode auto-switch (YlOrRd adaptive <-> turbo universal).
+// with WHO-scale colour. Scale mode: 'auto' switches to the fixed universal turbo
+// scale when the hour is episode-grade (98th pct >= 35 ug/m3, WHO IT-1), matching
+// the model's figure convention; 'universal' / 'adaptive' force either mode.
 
 import { makeLUT, clamp } from './util.js';
 
@@ -26,19 +28,22 @@ function upsample(grid, N, W, H) {
   return out;
 }
 
-// Decide colour mode + range for a field (matches nowcast_figure.py convention).
-export function colourMode(q50) {
+// Decide colour mode + range for a field. pref: 'auto' | 'universal' | 'adaptive'.
+export function colourMode(q50, pref = 'auto') {
   const sorted = Float32Array.from(q50).sort();
   const pct = (p) => sorted[Math.floor(clamp(p, 0, 1) * (sorted.length - 1))];
   const hot = pct(0.98);
-  if (hot >= 35) {
-    return { mode: 'turbo', lut: LUT_TURBO, lo: 8, hi: 90, tag: 'universal',
+  const universal = pref === 'universal' || (pref === 'auto' && hot >= 35);
+  if (universal) {
+    return { mode: 'turbo', lut: LUT_TURBO, lo: 8, hi: 90,
+             tag: pref === 'auto' ? 'universal · auto' : 'universal',
              ticks: [15, 25, 35, 50, 70, 90] };
   }
   const lo = Math.floor(pct(0.03) / 5) * 5;
   const hi = Math.max(Math.ceil(pct(0.995) / 5) * 5, lo + 10);
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => Math.round(lo + t * (hi - lo)));
-  return { mode: 'ylorrd', lut: LUT_YLORRD, lo, hi, tag: 'adaptive', ticks };
+  return { mode: 'ylorrd', lut: LUT_YLORRD, lo, hi,
+           tag: pref === 'auto' ? 'adaptive · auto' : 'adaptive', ticks };
 }
 
 // Paint the field. `canvas` is the PM layer; hillshade drawn beneath by caller.
@@ -58,7 +63,7 @@ export function paintField(canvas, q50, cm) {
   canvas.getContext('2d').putImageData(img, 0, 0);
 }
 
-// Draw the colourbar into a small canvas + label ticks in the DOM element.
+// Draw the colourbar gradient into a small canvas.
 export function paintColourbar(canvas, cm) {
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;

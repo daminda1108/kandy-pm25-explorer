@@ -1,5 +1,7 @@
 // overlay.js — static vector layers (OSM roads/river/water, emission contours,
 // landmarks) drawn on a canvas aligned to the same bbox as the field.
+// Landmarks carry a kind: "city" | "town" | "sensor" and are drawn with halos;
+// labels near the frame edges are flipped inward so nothing clips.
 
 export class Overlay {
   constructor(canvas, bbox) {
@@ -20,42 +22,73 @@ export class Overlay {
 
   draw() {
     const ctx = this.ctx, W = this.canvas.width, H = this.canvas.height;
+    const k = W / 620;                       // stroke/font scale vs design size
     ctx.clearRect(0, 0, W, H);
     if (!this.layers) return;
     const L = this.layers;
 
     if (this.show.water && L.water) {
       ctx.fillStyle = 'rgba(90,160,220,0.35)';
-      ctx.strokeStyle = 'rgba(120,190,240,0.6)'; ctx.lineWidth = 0.8;
+      ctx.strokeStyle = 'rgba(120,190,240,0.6)'; ctx.lineWidth = 0.8 * k;
       for (const f of L.water) if (f.t === 'pg') this._poly(f.c, true);
     }
     if (this.show.water && L.rivers) {
-      ctx.strokeStyle = 'rgba(120,190,240,0.7)'; ctx.lineWidth = 1.3;
+      ctx.strokeStyle = 'rgba(120,190,240,0.7)'; ctx.lineWidth = 1.3 * k;
       for (const f of L.rivers) if (f.t === 'ln') this._line(f.c);
     }
     if (this.show.roads && L.roads) {
-      ctx.strokeStyle = 'rgba(20,25,35,0.35)'; ctx.lineWidth = 0.6;
+      ctx.strokeStyle = 'rgba(20,25,35,0.35)'; ctx.lineWidth = 0.6 * k;
       for (const f of L.roads) if (f.t === 'ln') this._line(f.c);
     }
     if (this.show.emission && this.emission) {
       for (const c of this.emission.contours) {
         const a = 0.25 + c.level * 0.5;
         ctx.strokeStyle = `rgba(46,204,113,${a})`;
-        ctx.lineWidth = 0.8 + c.level;
+        ctx.lineWidth = (0.8 + c.level) * k;
         this._line(c.pts);
       }
     }
-    if (this.show.landmarks && L.landmarks) {
-      ctx.font = '11px Inter, sans-serif';
-      for (const p of L.landmarks) {
-        const [x, y] = this._pt(p.c[0], p.c[1]);
-        ctx.fillStyle = 'rgba(255,255,255,0.95)';
-        ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(x, y, 3, 0, 7); ctx.fill();
-        ctx.lineWidth = 3; ctx.strokeText(p.n, x + 6, y + 3);
-        ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fillText(p.n, x + 6, y + 3);
+    if (this.show.landmarks && L.landmarks) this._labels(L.landmarks, k, W, H);
+  }
+
+  _labels(marks, k, W, H) {
+    const ctx = this.ctx;
+    for (const p of marks) {
+      const [x, y] = this._pt(p.c[0], p.c[1]);
+      if (x < -4 || x > W + 4 || y < -4 || y > H + 4) continue;   // out of frame
+      const kind = p.k || 'town';
+      const city = kind === 'city', sensor = kind === 'sensor';
+      const fs = (city ? 13 : sensor ? 10.5 : 10.5) * k;
+      ctx.font = `${city ? '600 ' : ''}${sensor ? 'italic ' : ''}${fs}px Inter, sans-serif`;
+
+      // marker
+      if (sensor) {
+        const r = 4.2 * k;
+        ctx.fillStyle = 'rgba(86,200,255,0.95)';
+        ctx.strokeStyle = 'rgba(5,8,12,0.8)'; ctx.lineWidth = 1.6 * k;
+        ctx.beginPath();
+        ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      } else {
+        ctx.fillStyle = city ? 'rgba(255,255,255,0.98)' : 'rgba(255,255,255,0.82)';
+        ctx.strokeStyle = 'rgba(5,8,12,0.7)'; ctx.lineWidth = 1.4 * k;
+        ctx.beginPath(); ctx.arc(x, y, (city ? 3.4 : 2.4) * k, 0, 7); ctx.fill(); ctx.stroke();
       }
+
+      // label placement: flip inward near edges so text never clips
+      let dx = 7 * k, align = 'left', dy = 3.5 * k;
+      if (x > W * 0.82) { dx = -7 * k; align = 'right'; }
+      if (y < 18 * k) dy = 14 * k;
+      if (y > H - 12 * k) dy = -8 * k;
+      ctx.textAlign = align;
+      ctx.lineWidth = 3.2 * k; ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(5,8,12,0.85)';
+      ctx.strokeText(p.n, x + dx, y + dy);
+      ctx.fillStyle = sensor ? 'rgba(160,220,250,0.95)'
+                    : city ? 'rgba(255,255,255,0.98)' : 'rgba(235,240,248,0.88)';
+      ctx.fillText(p.n, x + dx, y + dy);
     }
+    ctx.textAlign = 'left';
   }
 
   _line(pts) {

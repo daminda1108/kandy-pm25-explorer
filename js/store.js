@@ -7,6 +7,7 @@
 import { getJSON, getGzip } from './util.js';
 
 const BASE = 'data';
+const CORE_LAT = 7.2906, CORE_LON = 80.6337;
 
 export class Store {
   constructor() {
@@ -18,11 +19,14 @@ export class Store {
     this.health = null;
     this.fect = new Map();
     this._monthIndex = new Map(); // year -> Int32Array(gi -> local_i) + starts
+    this.corePix = 0;
   }
 
   async init() {
     this.meta = await getJSON(`${BASE}/meta.json`);
     this.npx = this.meta.grid.n_lat * this.meta.grid.n_lon;
+    const g = this.meta.grid;
+    this.corePix = nearest(g.lats, CORE_LAT) * g.n_lon + nearest(g.lons, CORE_LON);
     await this._loadWind();
     this.static.fields = await getJSON(`${BASE}/static/fields.json`);
     this.static.layers = await getJSON(`${BASE}/static/layers.json`);
@@ -63,14 +67,13 @@ export class Store {
     const hrs = s.hours_utc;
     const li = new Int32Array(hrs.length);
     const counts = {};
+    const mmOf = new Int8Array(hrs.length);
     for (let gi = 0; gi < hrs.length; gi++) {
       const mm = new Date(hrs[gi] * 1000).getUTCMonth() + 1;
       counts[mm] = counts[mm] ?? 0;
       li[gi] = counts[mm]++;
+      mmOf[gi] = mm;
     }
-    const mmOf = new Int8Array(hrs.length);
-    for (let gi = 0; gi < hrs.length; gi++)
-      mmOf[gi] = new Date(hrs[gi] * 1000).getUTCMonth() + 1;
     this._monthIndex.set(year, { li, mmOf });
     return s;
   }
@@ -96,18 +99,27 @@ export class Store {
     const B = s.B[gi], T = s.T[gi], T05 = s.T05[gi], T95 = s.T95[gi];
     const q50 = new Float32Array(npx), q05 = new Float32Array(npx),
           q95 = new Float32Array(npx), P = new Float32Array(npx);
+    let s50 = 0, s05 = 0, s95 = 0;
     for (let i = 0; i < npx; i++) {
       const p = pmin + month.rows[off + i] / 65535 * span;
       P[i] = p;
       q50[i] = Math.max(B + (T - B) * p, 0);
       q05[i] = Math.max(B + (T05 - B) * p, 0);
       q95[i] = Math.max(B + (T95 - B) * p, 0);
+      s50 += q50[i]; s05 += q05[i]; s95 += q95[i];
     }
+    const cp = this.corePix;
     return { q50, q05, q95, P, B, T, T05, T95, gi, year,
-             blo: s.B_hi[gi], bhi: s.B_lo[gi],
+             bLo: s.B_lo[gi], bHi: s.B_hi[gi],
              basin: s.basin[gi], core: s.core[gi],
+             basin05: s05 / npx, basin95: s95 / npx,
+             core05: q05[cp], core95: q95[cp],
              u10: s.u10[gi], v10: s.v10[gi], blh: s.blh[gi],
-             wspd: s.wspd[gi], wdir: s.wdir_from[gi], tsUTC: s.hours_utc[gi] };
+             wspd: s.wspd[gi], wdir: s.wdir_from[gi],
+             t2m: s.t2m ? s.t2m[gi] : NaN,
+             rh: s.rh ? s.rh[gi] : NaN,
+             rain: s.rain ? s.rain[gi] : NaN,
+             tsUTC: s.hours_utc[gi] };
   }
 
   // Reconstruct the 64x64 terrain wind field via the shipped blend (parity-verified).
@@ -143,4 +155,10 @@ export class Store {
       this.fect.set(year, await getJSON(`${BASE}/fect_${year}.json`));
     return this.fect.get(year);
   }
+}
+
+function nearest(arr, v) {
+  let bi = 0, bd = 1e18;
+  for (let i = 0; i < arr.length; i++) { const d = Math.abs(arr[i] - v); if (d < bd) { bd = d; bi = i; } }
+  return bi;
 }

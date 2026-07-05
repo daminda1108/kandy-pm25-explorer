@@ -4,13 +4,18 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Kandy PM2.5 Explorer · 2019–2023</title>
-  <meta name="description" content="Interactive 1 km hourly PM2.5 fields for Kandy, Sri Lanka (2019–2023): heatmap, terrain wind, uncertainty, background/local decomposition, exposure and documented haze episodes." />
+  <meta name="description" content="Hourly 1 km PM2.5 fields for Kandy, Sri Lanka (2019–2023): heatmap, terrain wind, uncertainty, background/local split, weather conditions and documented haze events." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <div id="loading"><div class="spinner"></div><span>Loading Kandy fields…</span></div>
+  <div id="loading">
+    <div class="load-inner">
+      <div class="spinner"></div>
+      <span>Loading Kandy PM<sub>2.5</sub> fields…</span>
+    </div>
+  </div>
 
   <header>
     <div class="title-wrap">
@@ -18,30 +23,50 @@
       <span class="years">2019 – 2023</span>
     </div>
     <div class="header-right">
-      <a href="method.html" class="method-link">Method &amp; integrity</a>
+      <a href="method.html" class="method-link">How it works</a>
     </div>
   </header>
 
   <div id="banner">
-    <span>⚠︎ Research model — anchored level, scenario-grade fine spatial pattern.
-    No public real-time monitor exists in Kandy.</span>
-    <a href="method.html">Read how it works →</a>
+    <span>Research reconstruction — the annual level is anchored to satellite data;
+    the street-scale pattern is physics-based and indicative.</span>
+    <a href="method.html">Method →</a>
+  </div>
+
+  <div class="datetime-bar">
+    <span class="dt-label">Date &amp; time</span>
+    <select id="sel-year" aria-label="Year"></select>
+    <select id="sel-month" aria-label="Month"></select>
+    <select id="sel-day" aria-label="Day"></select>
+    <select id="sel-hour" aria-label="Hour"></select>
+    <span class="dt-hint">Sri Lanka time · hourly grid at :30</span>
+    <span class="spacer"></span>
+    <div class="transport">
+      <button id="prev" title="Previous hour (←)">&#9664;</button>
+      <button id="play" title="Play / pause (space)">&#9654;</button>
+      <button id="next" title="Next hour (→)">&#9654;&#9654;</button>
+    </div>
   </div>
 
   <main>
     <section class="map-col">
       <div id="map-title" class="map-title"></div>
       <div id="mapstack" class="mapstack"></div>
-      <div class="colourbar-wrap">
-        <canvas id="colourbar" width="260" height="14"></canvas>
-        <div id="cb-ticks" class="cb-ticks"></div>
-        <div class="cb-label">PM₂.₅ (µg m⁻³) · <span id="cb-tag">adaptive</span></div>
+
+      <div class="map-foot">
+        <div class="colourbar-wrap">
+          <canvas id="colourbar" width="260" height="12"></canvas>
+          <div id="cb-ticks" class="cb-ticks"></div>
+          <div class="cb-label">PM<sub>2.5</sub> (µg/m³) · <span id="cb-tag">adaptive</span></div>
+        </div>
+        <div class="seg" role="group" aria-label="Colour scale">
+          <button class="seg-btn active" data-mode="auto">Auto</button>
+          <button class="seg-btn" data-mode="universal">Universal</button>
+          <button class="seg-btn" data-mode="adaptive">Adaptive</button>
+        </div>
       </div>
 
       <div class="controls">
-        <button id="prev" title="Previous hour (←)">⏮</button>
-        <button id="play" title="Play / pause (space)">▶</button>
-        <button id="next" title="Next hour (→)">⏭</button>
         <label class="tog"><input type="checkbox" id="uq" /> 90% upper bound</label>
         <span class="spacer"></span>
         <label class="tog"><input type="checkbox" id="layer-roads" checked /> roads</label>
@@ -50,30 +75,36 @@
         <label class="tog"><input type="checkbox" id="layer-landmarks" checked /> labels</label>
       </div>
 
+      <div class="episodes-row">
+        <span class="ep-label">Documented events:</span>
+        <span id="episodes"></span>
+      </div>
+      <div id="episode-card" class="episode-card"></div>
+
       <div class="download-row">
         <span class="ep-label">Download:</span>
         <button id="dl-png" class="dl-btn">PNG map</button>
         <button id="dl-csv" class="dl-btn">field CSV</button>
         <button id="dl-point" class="dl-btn" disabled>point series CSV</button>
       </div>
-
-      <div class="episodes-row">
-        <span class="ep-label">Documented episodes:</span>
-        <span id="episodes"></span>
-      </div>
-      <div id="episode-card" class="episode-card"></div>
     </section>
 
     <aside class="rail">
       <div class="panel">
-        <h3>Decomposition</h3>
-        <canvas id="decomp-canvas" width="240" height="150"></canvas>
-        <p id="decomp-note" class="note"></p>
+        <h3>Temporal variation <span class="hint">selected day</span></h3>
+        <canvas id="diurnal-canvas"></canvas>
+        <p id="diurnal-note" class="note"></p>
+        <h4 class="sub-h">Months of <span id="season-year"></span></h4>
+        <canvas id="season-canvas"></canvas>
       </div>
       <div class="panel">
-        <h3>Diurnal cycle · this day</h3>
-        <canvas id="diurnal-canvas" width="240" height="150"></canvas>
-        <p id="diurnal-note" class="note"></p>
+        <h3>Weather <span class="hint">ERA5, this hour</span></h3>
+        <div id="weather-body" class="kv"></div>
+      </div>
+      <div class="panel">
+        <h3>Background vs local</h3>
+        <canvas id="decomp-canvas"></canvas>
+        <p id="decomp-note" class="note"></p>
       </div>
       <div class="panel" id="point-panel">
         <h3>Point query <span class="hint">click the map</span></h3>
@@ -87,7 +118,7 @@
   </main>
 
   <div class="timeline-wrap">
-    <canvas id="timeline" width="1100" height="66"></canvas>
+    <canvas id="timeline"></canvas>
   </div>
 
   <footer>

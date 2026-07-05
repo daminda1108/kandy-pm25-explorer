@@ -1,6 +1,6 @@
-// app.js — Kandy PM2.5 Explorer orchestrator (W2 core; panels wired in W3).
+// app.js — Kandy PM2.5 Explorer orchestrator.
 
-import { $, el, fmt, clamp } from './util.js';
+import { $, el, fmt, fmtCI, clamp } from './util.js';
 import { Store } from './store.js';
 import { colourMode, paintField, paintColourbar } from './field.js';
 import { WindLayer } from './wind.js';
@@ -9,17 +9,21 @@ import { Overlay } from './overlay.js';
 import { initPanels, updatePanels } from './panels.js';
 import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js';
 
-const MAP = 600;                    // internal map canvas resolution (square)
-const CB = 260;                     // colourbar width
+const MAP = 840;                    // internal map canvas resolution (square)
 const LT_OFFSET = 5.5 * 3600;       // Asia/Colombo = UTC+5:30
 
-const state = { year: null, gi: 0, playing: false, showUQ: false, cur: null };
+const state = { year: null, gi: 0, playing: false, showUQ: false,
+                scaleMode: 'auto', cur: null, pin: null };
 
 const store = new Store();
 let timeline, wind, overlay, hillCtx;
 
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+                'August', 'September', 'October', 'November', 'December'];
+
+function ltDate(tsUTC) { return new Date((tsUTC + LT_OFFSET) * 1000); }
 function ltLabel(tsUTC) {
-  const d = new Date((tsUTC + LT_OFFSET) * 1000);
+  const d = ltDate(tsUTC);
   const day = d.toISOString().slice(0, 10);
   const hh = String(d.getUTCHours()).padStart(2, '0');
   const mm = String(d.getUTCMinutes()).padStart(2, '0');
@@ -29,7 +33,7 @@ function seasonOf(month) {
   return ['DJF', 'DJF', 'MAM', 'MAM', 'MAM', 'JJA', 'JJA', 'JJA', 'SON', 'SON', 'SON', 'DJF'][month - 1];
 }
 function daypart(h) {
-  return h < 6 ? 'deep night' : h < 10 ? 'morning rush' : h < 16 ? 'midday'
+  return h < 6 ? 'night' : h < 10 ? 'morning rush' : h < 16 ? 'midday'
        : h < 20 ? 'evening rush' : 'night';
 }
 
@@ -48,14 +52,12 @@ async function boot() {
   overlay = new Overlay($('#cv-vec'), bbox);
   overlay.setData(store.static.layers, store.static.emission);
 
-  // click-a-pixel
   $('#cv-vec').addEventListener('click', (e) => onPixelClick(e));
 
-  // timeline
   timeline = new Timeline($('#timeline'), store.meta.years, (y, gi) => seek(y, gi));
 
-  // controls
   wireControls();
+  wireDatetime();
   initPanels(store, (y, gi) => seek(y, gi));
 
   // preload all years' scalars for the strip (small, gzip over the wire)
@@ -64,16 +66,17 @@ async function boot() {
     timeline.addYear(y, s);
   }
 
-  // integrity + credits
   $('#integrity-text').textContent = store.meta.integrity;
   buildEpisodes();
   buildCredits();
 
-  // initial view: a documented episode so the first paint is dramatic
+  // initial view: a documented episode
   const ep = store.meta.episodes.find((e) => e.id === 'dec2022') || store.meta.episodes[0];
   await seekToTs(ep.ts);
   wind.start();
-  $('#loading').remove();
+  const load = $('#loading');
+  load.classList.add('done');
+  setTimeout(() => load.remove(), 450);
 }
 
 function drawHillshade() {
@@ -81,22 +84,22 @@ function drawHillshade() {
   hillCtx.clearRect(0, 0, MAP, MAP);
   hillCtx.globalAlpha = 1;
   hillCtx.drawImage(im, 0, 0, MAP, MAP);
-  // tint darker for contrast under the translucent field
   hillCtx.fillStyle = 'rgba(15,20,30,0.35)';
   hillCtx.fillRect(0, 0, MAP, MAP);
 }
 
 async function seek(year, gi) {
-  state.year = year; state.gi = clamp(gi, 0, 999999);
+  state.year = year;
   const s = await store.getScalars(year);
   state.gi = clamp(gi, 0, s.hours_utc.length - 1);
   const f = await store.field(year, state.gi);
   state.cur = f;
   render(f);
   timeline.setCursor(year, state.gi);
+  syncDatetime(f.tsUTC);
   const wf = await store.windField(year, state.gi);
   wind.setField(wf);
-  updatePanels(f, { season: seasonOf(new Date(f.tsUTC * 1000).getUTCMonth() + 1) });
+  updatePanels(f);
 }
 
 async function seekToTs(tsStr) {
@@ -116,26 +119,68 @@ async function seekToTs(tsStr) {
 function render(f) {
   drawHillshade();
   const q = state.showUQ ? f.q95 : f.q50;
-  const cm = colourMode(f.q50);         // colour range keyed to the median field
+  const cm = colourMode(f.q50, state.scaleMode);   // range keyed to the median field
   paintField($('#cv-field'), q, cm);
   overlay.draw();
   paintColourbar($('#colourbar'), cm);
-  // colourbar ticks
   const cbT = $('#cb-ticks'); cbT.innerHTML = '';
   cm.ticks.forEach((t, i) => {
     const span = el('span', {}, `${t}`);
-    span.style.left = `${(i / (cm.ticks.length - 1)) * 100}%`;
+    span.style.left = `${((t - cm.lo) / (cm.hi - cm.lo)) * 100}%`;
     cbT.append(span);
   });
   $('#cb-tag').textContent = cm.tag;
-  // title readout
+  // title readout (all central values carry their 90% interval)
   const { day, hm } = ltLabel(f.tsUTC);
-  const month = new Date(f.tsUTC * 1000).getUTCMonth() + 1;
-  const lh = new Date((f.tsUTC + LT_OFFSET) * 1000).getUTCHours();
+  const month = ltDate(f.tsUTC).getUTCMonth() + 1;
+  const lh = ltDate(f.tsUTC).getUTCHours();
   $('#map-title').innerHTML =
-    `<b>${day} ${hm}</b> LT &nbsp;·&nbsp; ${seasonOf(month)}, ${daypart(lh)} `
-    + `&nbsp;·&nbsp; basin <b>${fmt(f.basin)}</b>, core <b>${fmt(f.core)}</b> µg m⁻³`
-    + (state.showUQ ? ' &nbsp;·&nbsp; <span class="uqtag">showing 90% upper bound</span>' : '');
+    `<b>${day} ${hm}</b> <span class="dim">Sri Lanka time</span> · ${seasonOf(month)}, ${daypart(lh)}`
+    + `<span class="readout">basin ${fmtCI(f.basin, f.basin05, f.basin95)} · `
+    + `core ${fmtCI(f.core, f.core05, f.core95)} µg/m³</span>`
+    + (state.showUQ ? ' <span class="uqtag">showing 90% upper bound</span>' : '');
+}
+
+// ── date & time dropdowns ─────────────────────────────────────────────────────
+function wireDatetime() {
+  const ySel = $('#sel-year'), mSel = $('#sel-month'), dSel = $('#sel-day'), hSel = $('#sel-hour');
+  for (const y of store.meta.years) ySel.append(el('option', { value: y }, String(y)));
+  MONTHS.forEach((m, i) => mSel.append(el('option', { value: i + 1 }, m)));
+  for (let h = 0; h < 24; h++)
+    hSel.append(el('option', { value: h }, `${String(h).padStart(2, '0')}:30`));
+  const rebuildDays = () => {
+    const y = +ySel.value, m = +mSel.value;
+    const nd = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const cur = +dSel.value || 1;
+    dSel.innerHTML = '';
+    for (let d = 1; d <= nd; d++) dSel.append(el('option', { value: d }, String(d)));
+    dSel.value = Math.min(cur, nd);
+  };
+  const go = () => {
+    rebuildDays();
+    const ts = `${ySel.value}-${String(mSel.value).padStart(2, '0')}-${String(dSel.value).padStart(2, '0')}`
+             + ` ${String(hSel.value).padStart(2, '0')}:30`;
+    seekToTs(ts);
+  };
+  for (const s of [ySel, mSel, dSel, hSel]) s.addEventListener('change', go);
+  rebuildDays();
+}
+
+let syncing = false;
+function syncDatetime(tsUTC) {
+  syncing = true;
+  const d = ltDate(tsUTC);
+  $('#sel-year').value = d.getUTCFullYear();
+  $('#sel-month').value = d.getUTCMonth() + 1;
+  const dSel = $('#sel-day');
+  const nd = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  if (dSel.options.length !== nd) {
+    dSel.innerHTML = '';
+    for (let dd = 1; dd <= nd; dd++) dSel.append(el('option', { value: dd }, String(dd)));
+  }
+  dSel.value = d.getUTCDate();
+  $('#sel-hour').value = d.getUTCHours();
+  syncing = false;
 }
 
 function wireControls() {
@@ -143,11 +188,21 @@ function wireControls() {
   $('#prev').addEventListener('click', () => step(-1));
   $('#next').addEventListener('click', () => step(1));
   $('#uq').addEventListener('change', (e) => { state.showUQ = e.target.checked; if (state.cur) render(state.cur); });
+  // scale mode segmented control
+  for (const btn of document.querySelectorAll('.seg-btn')) {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.seg-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.scaleMode = btn.dataset.mode;
+      if (state.cur) render(state.cur);
+    });
+  }
   for (const key of ['roads', 'water', 'emission', 'landmarks']) {
     const cb = $(`#layer-${key}`);
     if (cb) cb.addEventListener('change', (e) => { overlay.show[key] = e.target.checked; overlay.draw(); });
   }
   document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'SELECT') return;
     if (e.key === 'ArrowLeft') step(-1);
     else if (e.key === 'ArrowRight') step(1);
     else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
@@ -162,7 +217,7 @@ function wireControls() {
 let playTimer = null;
 function togglePlay() {
   state.playing = !state.playing;
-  $('#play').textContent = state.playing ? '⏸' : '▶';
+  $('#play').innerHTML = state.playing ? '&#10073;&#10073;' : '&#9654;';
   if (state.playing) {
     playTimer = setInterval(() => step(1, true), 120);
   } else clearInterval(playTimer);
@@ -209,5 +264,5 @@ async function onPixelClick(e) {
 boot().catch((err) => {
   console.error(err);
   const l = $('#loading');
-  if (l) l.innerHTML = `<div class="err">Failed to load: ${err.message}</div>`;
+  if (l) l.innerHTML = `<div class="err">Could not load the dataset: ${err.message}</div>`;
 });

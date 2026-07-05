@@ -1,7 +1,8 @@
-// timeline.js — 5-year seasonal heat-strip + scrubber + play controls.
-// Each day is a coloured tick (basin-mean PM). Clicking/dragging selects an hour.
+// timeline.js — 5-year daily heat-strip + scrubber. Each day is a coloured tick
+// (basin-mean PM). Clicking/dragging selects an hour. Month separators + year
+// labels; crisp at devicePixelRatio.
 
-import { makeLUT, clamp } from './util.js';
+import { makeLUT, clamp, fitCanvas } from './util.js';
 
 const LUT = makeLUT('ylorrd', 1.1);
 const STRIP_LO = 8, STRIP_HI = 45;   // fixed strip colour range across all years
@@ -9,15 +10,23 @@ const STRIP_LO = 8, STRIP_HI = 45;   // fixed strip colour range across all year
 export class Timeline {
   constructor(canvas, years, onSeek) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
     this.years = years;
     this.onSeek = onSeek;
     this.daily = new Map();          // year -> Float32Array(nDays) daily basin mean
+    this.monthStart = new Map();     // year -> [day index of each month start]
     this.hoursByYear = new Map();    // year -> hours_utc array
     this.cursor = { year: years[0], gi: 0 };
+    this._fit();
+    window.addEventListener('resize', () => { this._fit(); this.draw(); });
     canvas.addEventListener('pointerdown', (e) => { this._drag = true; this._pick(e); });
     canvas.addEventListener('pointermove', (e) => { if (this._drag) this._pick(e); });
     window.addEventListener('pointerup', () => { this._drag = false; });
+  }
+
+  _fit() {
+    const cssW = this.canvas.parentElement?.clientWidth || 1100;
+    const r = fitCanvas(this.canvas, cssW, 72);
+    this.ctx = r.ctx; this.W = r.w; this.H = r.h;
   }
 
   // Feed a year's scalars (hours_utc + basin) to build the daily strip.
@@ -31,23 +40,31 @@ export class Timeline {
     }
     const days = [...byDay.keys()].sort((a, b) => a - b);
     const arr = new Float32Array(days.length);
-    days.forEach((d, k) => { const a = byDay.get(d); arr[k] = a[0] / a[1]; });
+    const mstart = [];
+    let prevM = -1;
+    days.forEach((d, k) => {
+      const a = byDay.get(d); arr[k] = a[0] / a[1];
+      const m = new Date(d * 86400000).getUTCMonth();
+      if (m !== prevM) { mstart.push(k); prevM = m; }
+    });
     this.daily.set(year, arr);
+    this.monthStart.set(year, mstart);
     this.hoursByYear.set(year, hrs);
     this.draw();
   }
 
   _yearSpans() {
-    // horizontal layout: each year gets an equal slab
-    const W = this.canvas.width, n = this.years.length, pad = 2;
+    const W = this.W, n = this.years.length, pad = 3;
     return this.years.map((y, k) => ({
       year: y, x0: (k * W) / n + pad, x1: ((k + 1) * W) / n - pad,
     }));
   }
 
   draw() {
-    const c = this.canvas, ctx = this.ctx, W = c.width, H = c.height;
+    const ctx = this.ctx, W = this.W, H = this.H;
+    if (!ctx) return;
     ctx.clearRect(0, 0, W, H);
+    const top = 7, bot = 18;
     for (const span of this._yearSpans()) {
       const arr = this.daily.get(span.year);
       if (!arr) continue;
@@ -56,21 +73,29 @@ export class Timeline {
         const t = clamp((arr[d] - STRIP_LO) / (STRIP_HI - STRIP_LO), 0, 1) * 255 | 0;
         const j = t * 4;
         ctx.fillStyle = `rgb(${LUT[j]},${LUT[j + 1]},${LUT[j + 2]})`;
-        ctx.fillRect(span.x0 + d * w, 6, Math.ceil(w) + 0.5, H - 20);
+        ctx.fillRect(span.x0 + d * w, top, w + 0.6, H - top - bot);
+      }
+      // month separators (subtle)
+      ctx.strokeStyle = 'rgba(10,14,20,0.5)'; ctx.lineWidth = 1;
+      for (const ms of (this.monthStart.get(span.year) || []).slice(1)) {
+        const x = span.x0 + ms * w;
+        ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, H - bot); ctx.stroke();
       }
       // year label
-      ctx.fillStyle = 'rgba(230,235,245,0.85)';
-      ctx.font = '11px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(210,220,235,0.75)';
+      ctx.font = '600 11px Inter, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(span.year, (span.x0 + span.x1) / 2, H - 4);
+      ctx.fillText(span.year, (span.x0 + span.x1) / 2, H - 5);
     }
     // cursor marker
     const px = this._giToX(this.cursor.year, this.cursor.gi);
     if (px != null) {
-      ctx.strokeStyle = '#4dd0ff'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(px, 2); ctx.lineTo(px, H - 16); ctx.stroke();
-      ctx.fillStyle = '#4dd0ff';
-      ctx.beginPath(); ctx.arc(px, 4, 3, 0, 7); ctx.fill();
+      const ctx2 = ctx;
+      ctx2.strokeStyle = 'rgba(86,200,255,0.95)'; ctx2.lineWidth = 1.8;
+      ctx2.beginPath(); ctx2.moveTo(px, 3); ctx2.lineTo(px, H - bot + 3); ctx2.stroke();
+      ctx2.fillStyle = '#56c8ff';
+      ctx2.beginPath(); ctx2.moveTo(px - 4, 2); ctx2.lineTo(px + 4, 2); ctx2.lineTo(px, 8);
+      ctx2.closePath(); ctx2.fill();
     }
   }
 
@@ -83,7 +108,7 @@ export class Timeline {
 
   _pick(e) {
     const r = this.canvas.getBoundingClientRect();
-    const x = (e.clientX - r.left) * (this.canvas.width / r.width);
+    const x = (e.clientX - r.left) * (this.W / r.width);
     const spans = this._yearSpans();
     let span = spans.find((s) => x >= s.x0 && x <= s.x1) || spans[0];
     const hrs = this.hoursByYear.get(span.year);
