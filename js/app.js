@@ -1,14 +1,14 @@
 // app.js — Kandy PM2.5 Explorer orchestrator.
 
-import { $, el, fmt, fmtCI, clamp } from './util.js?v=1783611286';
-import { Store } from './store.js?v=1783611286';
-import { colourMode, paintField, paintColourbar } from './field.js?v=1783611286';
-import { WindLayer } from './wind.js?v=1783611286';
-import { Timeline } from './timeline.js?v=1783611286';
-import { Overlay } from './overlay.js?v=1783611286';
-import { initPanels, updatePanels, pointQuery } from './panels.js?v=1783611286';
-import { MapView } from './mapview.js?v=1783611286';
-import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1783611286';
+import { $, el, fmt, fmtCI, clamp } from './util.js?v=1783632833';
+import { Store } from './store.js?v=1783632833';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1783632833';
+import { WindLayer } from './wind.js?v=1783632833';
+import { Timeline } from './timeline.js?v=1783632833';
+import { Overlay } from './overlay.js?v=1783632833';
+import { initPanels, updatePanels, pointQuery } from './panels.js?v=1783632833';
+import { MapView } from './mapview.js?v=1783632833';
+import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1783632833';
 
 const MAP = 840;                    // internal map canvas resolution (square)
 const LT_OFFSET = 5.5 * 3600;       // Asia/Colombo = UTC+5:30

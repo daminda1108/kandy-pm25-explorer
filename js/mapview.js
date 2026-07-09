@@ -6,7 +6,7 @@
 // wind animation registered — no per-layer re-projection needed. The outer
 // element (#mapstack) is the fixed, untransformed viewport we measure against.
 
-import { clamp } from './util.js?v=1783611286';
+import { clamp } from './util.js?v=1783632833';
 
 export class MapView {
   constructor(outer, inner, bbox, onChange) {
@@ -19,7 +19,8 @@ export class MapView {
     this._drag = null;
     inner.style.transformOrigin = '0 0';
 
-    outer.addEventListener('wheel', (e) => this._wheel(e), { passive: false });
+    // Wheel zoom intentionally NOT bound (user 2026-07-10: hijacks page scroll).
+    // Zoom is via the on-map +/- buttons and touch pinch only.
     outer.addEventListener('pointerdown', (e) => this._down(e));
     window.addEventListener('pointermove', (e) => this._move(e));
     window.addEventListener('pointerup', (e) => this._up(e));
