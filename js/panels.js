@@ -3,7 +3,7 @@
 // decomposition split, exposure/health, click-a-pixel point query.
 // Every numeric estimate carries its interval.
 
-import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1783632833';
+import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1783633970';
 
 let store, seekCb, curField;
 const LT = 5.5 * 3600;
@@ -31,11 +31,13 @@ async function drawDiurnal(f) {
   const s = await store.getScalars(f.year);
   const daySec = Math.floor((f.tsUTC + LT) / 86400) * 86400 - LT;
   const pts = [];                                  // [hour, T, T05, T95]
+  const dayGis = [];                               // gi for each hour of the day
   for (let i = 0; i < s.hours_utc.length; i++) {
     const lt = s.hours_utc[i] + LT;
     if (Math.floor(lt / 86400) * 86400 - LT === daySec) {
       const h = new Date(lt * 1000).getUTCHours() + 0.5;   // native :30 grid
       pts.push([h, s.basin[i], s.T05[i], s.T95[i]]);
+      dayGis.push([h, i]);
     }
   }
   pts.sort((a, b) => a[0] - b[0]);
@@ -45,20 +47,33 @@ async function drawDiurnal(f) {
     const fe = await store.getFect(f.year);
     obs = fe.obs.filter((o) => o.d === dayStr).map((o) => [o.h + 0.5, o.v]);
   } catch { /* no obs */ }
+  // clicked-location diurnal: reconstruct that pixel across the day's hours so the
+  // viewer SEES how the local diurnal amplitude differs from the basin mean.
+  let pixLine = null;
+  if (pinnedPx != null) {
+    pixLine = [];
+    for (const [h, gi] of dayGis.sort((a, b) => a[0] - b[0])) {
+      const fld = await store.field(f.year, gi);
+      pixLine.push([h, fld.q50[pinnedPx]]);
+    }
+  }
   const markHour = new Date((f.tsUTC + LT) * 1000).getUTCHours() + 0.5;
-  diurnalChart($('#diurnal-canvas'), pts, obs, markHour);
-  $('#diurnal-note').innerHTML = obs.length
-    ? `<span class="dot dot-line"></span> basin mean · <span class="dot dot-band"></span> 90% interval · `
+  diurnalChart($('#diurnal-canvas'), pts, obs, markHour, pixLine);
+  const loc = pinnedPx != null
+    ? ` · <span class="dot dot-loc"></span> clicked location` : '';
+  $('#diurnal-note').innerHTML = (obs.length
+    ? `<span class="dot dot-line"></span> basin mean · <span class="dot dot-band"></span> 90% band · `
       + `<span class="dot dot-obs"></span> Akurana sensor (${obs.length} h)`
-    : `<span class="dot dot-line"></span> basin mean · <span class="dot dot-band"></span> 90% interval`;
+    : `<span class="dot dot-line"></span> basin mean · <span class="dot dot-band"></span> 90% band`) + loc;
 }
 
-function diurnalChart(canvas, pts, obs, markHour) {
+function diurnalChart(canvas, pts, obs, markHour, pixLine) {
   const { ctx, w: W, h: H } = fitCanvas(canvas, panelW(canvas), 168);
   ctx.clearRect(0, 0, W, H);
   if (!pts.length) return;
   const pad = { l: 34, r: 10, t: 10, b: 20 };
-  const all = pts.flatMap((p) => [p[3]]).concat(obs.map((o) => o[1]), pts.map((p) => p[1]));
+  const all = pts.flatMap((p) => [p[3]]).concat(obs.map((o) => o[1]), pts.map((p) => p[1]),
+    (pixLine || []).map((p) => p[1]));
   const ymax = Math.max(10, ...all) * 1.12, ymin = 0;
   const X = (h) => pad.l + (h / 24) * (W - pad.l - pad.r);
   const Y = (v) => H - pad.b - ((v - ymin) / (ymax - ymin)) * (H - pad.t - pad.b);
@@ -100,6 +115,14 @@ function diurnalChart(canvas, pts, obs, markHour) {
   ctx.beginPath(); smoothPath(ctx, line);
   ctx.strokeStyle = '#f0a35a'; ctx.lineWidth = 2.2; ctx.lineJoin = 'round';
   ctx.stroke();
+
+  // clicked-location line (dashed cyan) — shows the local diurnal amplitude
+  if (pixLine && pixLine.length) {
+    const pl = pixLine.map((p) => [X(p[0]), Y(p[1])]);
+    ctx.beginPath(); smoothPath(ctx, pl);
+    ctx.strokeStyle = '#56c8ff'; ctx.lineWidth = 1.8; ctx.lineJoin = 'round';
+    ctx.setLineDash([5, 3]); ctx.stroke(); ctx.setLineDash([]);
+  }
 
   // hour marker: vertical guide + dot on the curve
   if (markHour != null) {
@@ -257,13 +280,14 @@ function burdenHeadline(h) {
 }
 
 // ── click-a-pixel point query ────────────────────────────────────────────────
-let pinned = null;
+let pinned = null, pinnedPx = null;
 export async function pointQuery(lat, lon, silent = false) {
   if (!curField) return;
   pinned = { lat, lon };
   const g = store.meta.grid;
   const li = nearest(g.lats, lat), lj = nearest(g.lons, lon);
   const px = li * g.n_lon + lj;
+  pinnedPx = px;
   const f = curField;
   const val = f.q50[px], lo = f.q05[px], hi = f.q95[px];
   const elev = store.static.fields.elev[li][lj];
@@ -274,7 +298,11 @@ export async function pointQuery(lat, lon, silent = false) {
     <div class="hrow"><span>PM₂.₅ (this hour)</span><span class="hval">${fmtCI(val, lo, hi)} µg/m³</span></div>
     <div class="hrow"><span>Background / local</span><span class="hval"><b>${fmt(B)}</b> / <b>${fmt(local)}</b> µg/m³</span></div>`;
   $('#point-panel').classList.add('show');
+  drawDiurnal(curField);              // overlay this location's own diurnal curve
 }
+
+// Clear the pinned-location overlay (called when the point card is dismissed).
+export function clearPin() { pinned = null; pinnedPx = null; if (curField) drawDiurnal(curField); }
 
 function nearest(arr, v) {
   let bi = 0, bd = 1e18;

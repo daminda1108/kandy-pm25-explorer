@@ -177,6 +177,8 @@ main { display: grid; grid-template-columns: minmax(500px, 1fr) 384px;
 .dot-line { background: #f0a35a; }
 .dot-band { background: rgba(86, 200, 255, 0.35); }
 .dot-obs { background: #38b76a; border-radius: 50%; }
+.dot-loc { background: linear-gradient(90deg, #56c8ff 60%, transparent 60%);
+  background-size: 5px 100%; }
 .kv .hrow { display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
   padding: 4.5px 0; font-size: 12.5px; border-bottom: 1px solid rgba(255,255,255,.045); }
 .kv .hrow:last-child { border-bottom: 0; }
