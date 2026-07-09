@@ -99,13 +99,21 @@ export class Store {
     const B = s.B[gi], T = s.T[gi], T05 = s.T05[gi], T95 = s.T95[gi];
     const q50 = new Float32Array(npx), q05 = new Float32Array(npx),
           q95 = new Float32Array(npx), P = new Float32Array(npx);
+    // Increment-SPLIT reconstruction (matches build_additive_field_v2 + webapp_export,
+    // 2026-07-09): q = B + max(Tq-B,0)*P + min(Tq-B,0). The local pattern structures only
+    // the accumulation above background; ventilation below background is spatially uniform,
+    // so the core never renders cleaner than the rural edge (fixes the inversion).
+    const inc50 = T - B, inc05 = T05 - B, inc95 = T95 - B;
+    const a50 = Math.max(inc50, 0), u50 = Math.min(inc50, 0);
+    const a05 = Math.max(inc05, 0), u05 = Math.min(inc05, 0);
+    const a95 = Math.max(inc95, 0), u95 = Math.min(inc95, 0);
     let s50 = 0, s05 = 0, s95 = 0, pkI = 0;
     for (let i = 0; i < npx; i++) {
       const p = pmin + month.rows[off + i] / 65535 * span;
       P[i] = p;
-      q50[i] = Math.max(B + (T - B) * p, 0);
-      q05[i] = Math.max(B + (T05 - B) * p, 0);
-      q95[i] = Math.max(B + (T95 - B) * p, 0);
+      q50[i] = Math.max(B + a50 * p + u50, 0);
+      q05[i] = Math.max(B + a05 * p + u05, 0);
+      q95[i] = Math.max(B + a95 * p + u95, 0);
       s50 += q50[i]; s05 += q05[i]; s95 += q95[i];
       if (q50[i] > q50[pkI]) pkI = i;
     }
