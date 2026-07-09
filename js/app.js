@@ -1,13 +1,14 @@
 // app.js — Kandy PM2.5 Explorer orchestrator.
 
-import { $, el, fmt, fmtCI, clamp } from './util.js';
-import { Store } from './store.js';
-import { colourMode, paintField, paintColourbar } from './field.js';
-import { WindLayer } from './wind.js';
-import { Timeline } from './timeline.js';
-import { Overlay } from './overlay.js';
-import { initPanels, updatePanels } from './panels.js';
-import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js';
+import { $, el, fmt, fmtCI, clamp } from './util.js?v=1783611286';
+import { Store } from './store.js?v=1783611286';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1783611286';
+import { WindLayer } from './wind.js?v=1783611286';
+import { Timeline } from './timeline.js?v=1783611286';
+import { Overlay } from './overlay.js?v=1783611286';
+import { initPanels, updatePanels, pointQuery } from './panels.js?v=1783611286';
+import { MapView } from './mapview.js?v=1783611286';
+import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1783611286';
 
 const MAP = 840;                    // internal map canvas resolution (square)
 const LT_OFFSET = 5.5 * 3600;       // Asia/Colombo = UTC+5:30
@@ -16,7 +17,7 @@ const state = { year: null, gi: 0, playing: false, showUQ: false,
                 scaleMode: 'auto', cur: null, pin: null };
 
 const store = new Store();
-let timeline, wind, overlay, hillCtx;
+let timeline, wind, overlay, hillCtx, mapview;
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
                 'August', 'September', 'October', 'November', 'December'];
@@ -41,18 +42,24 @@ async function boot() {
   await store.init();
   const bbox = store.meta.grid.bbox;
 
-  // map stack
-  const stack = $('#mapstack');
+  // map stack — canvases live inside the transformed pan wrapper
+  const pan = $('#mappan');
   for (const id of ['hill', 'field', 'wind', 'vec']) {
     const cv = el('canvas', { id: `cv-${id}`, class: 'maplayer', width: MAP, height: MAP });
-    stack.append(cv);
+    pan.append(cv);
   }
   hillCtx = $('#cv-hill').getContext('2d');
   wind = new WindLayer($('#cv-wind'));
   overlay = new Overlay($('#cv-vec'), bbox);
   overlay.setData(store.static.layers, store.static.emission);
 
-  $('#cv-vec').addEventListener('click', (e) => onPixelClick(e));
+  // zoom / pan controller
+  mapview = new MapView($('#mapstack'), pan, bbox, () => repositionCard());
+  mapview.onClick((e) => onPixelClick(e));
+  $('#zoom-in').addEventListener('click', () => mapview.zoomBy(1.4));
+  $('#zoom-out').addEventListener('click', () => mapview.zoomBy(1 / 1.4));
+  $('#zoom-reset').addEventListener('click', () => mapview.reset());
+  $('#point-close').addEventListener('click', () => hidePointCard());
 
   timeline = new Timeline($('#timeline'), store.meta.years, (y, gi) => seek(y, gi));
 
@@ -268,14 +275,58 @@ function buildCredits() {
 }
 
 async function onPixelClick(e) {
-  const r = e.target.getBoundingClientRect();
-  const bbox = store.meta.grid.bbox;
-  const lon = bbox[0] + (e.clientX - r.left) / r.width * (bbox[2] - bbox[0]);
-  const lat = bbox[1] + (1 - (e.clientY - r.top) / r.height) * (bbox[3] - bbox[1]);
+  const [lon, lat] = mapview.screenToLatLon(e.clientX, e.clientY);
+  const b = store.meta.grid.bbox;
+  if (lon < b[0] || lon > b[2] || lat < b[1] || lat > b[3]) return;
   state.pin = { lat, lon };
   $('#dl-point').disabled = false;
-  const { pointQuery } = await import('./panels.js');
-  pointQuery(lat, lon);
+  pointQuery(lat, lon);                 // rail panel (fallback / full history)
+  showPointCard(lat, lon);              // floating on-map card
+}
+
+// ── floating on-map point card ────────────────────────────────────────────────
+function pointData(lat, lon) {
+  const g = store.meta.grid, f = state.cur;
+  const li = nearIdx(g.lats, lat), lj = nearIdx(g.lons, lon), px = li * g.n_lon + lj;
+  const elev = store.static.fields.elev[li][lj];
+  const B = f.B, val = f.q50[px], local = Math.max(val - B, 0);
+  return { val, lo: f.q05[px], hi: f.q95[px], elev, B, local,
+           slat: g.lats[li], slon: g.lons[lj] };
+}
+function showPointCard(lat, lon) {
+  if (!state.cur) return;
+  const d = pointData(lat, lon);
+  $('#point-card-body').innerHTML =
+    `<div class="pc-val">${fmtCI(d.val, d.lo, d.hi)} <span class="pc-unit">µg/m³</span></div>
+     <div class="pc-rows">
+       <span>Background</span><span>${fmt(d.B)}</span>
+       <span>Local</span><span>${fmt(d.local)}</span>
+       <span>Elevation</span><span>${fmt(d.elev, 0)} m</span>
+       <span>Location</span><span>${d.slat.toFixed(3)}, ${d.slon.toFixed(3)}</span>
+     </div>`;
+  $('#point-card').hidden = false;
+  repositionCard();
+}
+function repositionCard() {
+  const card = $('#point-card');
+  if (!card || card.hidden || !state.pin) return;
+  const outer = $('#mapstack').getBoundingClientRect();
+  const s = mapview.latLonToScreen(state.pin.lon, state.pin.lat);
+  // position within the map viewport, clamped, flipping side near the right edge
+  let x = s.x - outer.left + 12, y = s.y - outer.top + 12;
+  const cw = card.offsetWidth || 190, ch = card.offsetHeight || 120;
+  if (x + cw > outer.width) x = s.x - outer.left - cw - 12;
+  y = Math.max(6, Math.min(y, outer.height - ch - 6));
+  card.style.left = `${Math.max(6, x)}px`;
+  card.style.top = `${y}px`;
+  card.style.opacity = s.inside ? '1' : '0.35';
+}
+function hidePointCard() { $('#point-card').hidden = true; state.pin = null; }
+
+function nearIdx(arr, v) {
+  let bi = 0, bd = 1e18;
+  for (let i = 0; i < arr.length; i++) { const d = Math.abs(arr[i] - v); if (d < bd) { bd = d; bi = i; } }
+  return bi;
 }
 
 boot().catch((err) => {

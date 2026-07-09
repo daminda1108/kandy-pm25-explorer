@@ -3,7 +3,7 @@
 // scale when the hour is episode-grade (98th pct >= 35 ug/m3, WHO IT-1), matching
 // the model's figure convention; 'universal' / 'adaptive' force either mode.
 
-import { makeLUT, clamp } from './util.js';
+import { makeLUT, clamp } from './util.js?v=1783611286';
 
 const N = 16;                       // grid is 16x16
 const LUT_YLORRD = makeLUT('ylorrd', 1.15);
