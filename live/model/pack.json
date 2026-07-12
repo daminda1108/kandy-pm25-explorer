@@ -1,0 +1,175 @@
+{
+ "city": "medellin",
+ "target": "2-anchor network-mean PM2.5 (the F-M2-validated T(t) anchor)",
+ "features": [
+  "sin_h",
+  "cos_h",
+  "sin_doy",
+  "cos_doy",
+  "dow",
+  "blh",
+  "u10",
+  "v10",
+  "wspd",
+  "t2m",
+  "c_prior_scaled"
+ ],
+ "ratio": 0.749073,
+ "anchors": [
+  "7064",
+  "10702"
+ ],
+ "stations": [
+  {
+   "id": "10493",
+   "lat": 6.37843,
+   "lon": -75.45114,
+   "role": "vault"
+  },
+  {
+   "id": "10500",
+   "lat": 6.1685,
+   "lon": -75.64436,
+   "role": "vault"
+  },
+  {
+   "id": "10503",
+   "lat": 6.18567,
+   "lon": -75.59721,
+   "role": "vault"
+  },
+  {
+   "id": "10547",
+   "lat": 6.1455,
+   "lon": -75.62126,
+   "role": "vault"
+  },
+  {
+   "id": "10639",
+   "lat": 6.33755,
+   "lon": -75.5678,
+   "role": "vault"
+  },
+  {
+   "id": "10640",
+   "lat": 6.25891,
+   "lon": -75.54826,
+   "role": "vault"
+  },
+  {
+   "id": "10641",
+   "lat": 6.26337,
+   "lon": -75.577,
+   "role": "vault"
+  },
+  {
+   "id": "10681",
+   "lat": 6.16868,
+   "lon": -75.58197,
+   "role": "vault"
+  },
+  {
+   "id": "10682",
+   "lat": 6.27785,
+   "lon": -75.63643,
+   "role": "holdout"
+  },
+  {
+   "id": "10683",
+   "lat": 6.15231,
+   "lon": -75.62749,
+   "role": "vault"
+  },
+  {
+   "id": "10702",
+   "lat": 6.18254,
+   "lon": -75.55064,
+   "role": "anchor"
+  },
+  {
+   "id": "10778",
+   "lat": 6.15553,
+   "lon": -75.64417,
+   "role": "holdout"
+  },
+  {
+   "id": "10793",
+   "lat": 6.23723,
+   "lon": -75.61047,
+   "role": "vault"
+  },
+  {
+   "id": "10797",
+   "lat": 6.25256,
+   "lon": -75.56958,
+   "role": "vault"
+  },
+  {
+   "id": "10805",
+   "lat": 6.22189,
+   "lon": -75.6106,
+   "role": "holdout"
+  },
+  {
+   "id": "10813",
+   "lat": 6.09908,
+   "lon": -75.63863,
+   "role": "vault"
+  },
+  {
+   "id": "10814",
+   "lat": 6.09308,
+   "lon": -75.63776,
+   "role": "vault"
+  },
+  {
+   "id": "7038",
+   "lat": 6.29346,
+   "lon": -75.55643,
+   "role": "vault"
+  },
+  {
+   "id": "7060",
+   "lat": 6.14548,
+   "lon": -75.62141,
+   "role": "vault"
+  },
+  {
+   "id": "7061",
+   "lat": 6.19987,
+   "lon": -75.56095,
+   "role": "holdout"
+  },
+  {
+   "id": "7063",
+   "lat": 6.29048,
+   "lon": -75.55552,
+   "role": "holdout"
+  },
+  {
+   "id": "7064",
+   "lat": 6.37904,
+   "lon": -75.45091,
+   "role": "anchor"
+  },
+  {
+   "id": "7067",
+   "lat": 6.34536,
+   "lon": -75.50475,
+   "role": "holdout"
+  },
+  {
+   "id": "7645",
+   "lat": 6.14333,
+   "lon": -75.62028,
+   "role": "vault"
+  }
+ ],
+ "trained_rows": 32141,
+ "trained_span": [
+  "2018-11-05",
+  "2024-09-05"
+ ],
+ "sanity_rmse_2023": 5.79,
+ "driver_note": "live drivers = GEOS-CF CFAPI fcast (chm v1 PM25 -> c_prior; met x1 U,V,T,ZPBL), mean of the two 0.25-deg cells at lat 6.25, lon -75.75/-75.5 \u2014 the same cells as the archived F-M0 pull"
+}

@@ -7,7 +7,7 @@
   <meta name="description" content="The Kandy PM2.5 method run blind against Medellín's dense monitoring network: zero-sensor reconstruction, day-ahead forecast vs reality, and the measured value of ground monitors." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="../css/style.css?v=1783848702" />
+  <link rel="stylesheet" href="../css/style.css?v=1783879241" />
 </head>
 <body>
   <div id="loading">
@@ -133,6 +133,11 @@
         <h3>Forecast vs reality <span class="hint">day-ahead, 2023</span></h3>
         <canvas id="forecast-canvas"></canvas>
         <p id="forecast-note" class="note"></p>
+        <div id="live-wrap" style="display:none">
+          <h4 class="sub-h">Live · self-checking scoreboard</h4>
+          <canvas id="live-canvas"></canvas>
+          <p id="live-note" class="note"></p>
+        </div>
       </div>
 
       <div class="panel">
@@ -169,6 +174,6 @@
   </footer>
 
   <script>window.CITY_ID = 'medellin';</script>
-  <script type="module" src="../js/app.js?v=1783848702"></script>
+  <script type="module" src="../js/app.js?v=1783879241"></script>
 </body>
 </html>

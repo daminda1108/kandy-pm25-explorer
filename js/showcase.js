@@ -7,8 +7,8 @@
 //      between assimilation tiers and moves a live point on the data-value curve.
 // All numbers come from the exported payloads (stations/showcase/forecast/datavalue).
 
-import { $, el, fmt, fitCanvas, ylorrd, clamp } from './util.js?v=1783848702';
-import { colourMode, paintField, paintColourbar } from './field.js?v=1783848702';
+import { $, el, fmt, fitCanvas, ylorrd, clamp } from './util.js?v=1783879241';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1783879241';
 
 export async function initShowcase({ store, city, mapview, stationCanvas, getState, exitToHour }) {
   const [stations, showcase, forecast, dv] = await Promise.all([
@@ -303,10 +303,90 @@ export async function initShowcase({ store, city, mapview, stationCanvas, getSta
     return clamp(cv.parentElement.clientWidth - 34, 180, 620);
   }
 
+  // ── live self-checking scoreboard (present once the daily Action has run) ──
+  let liveData = null;
+  async function drawLive() {
+    if (!liveData) {
+      try { liveData = await store.getExtra('live'); } catch { return; }
+    }
+    const live = liveData;
+    if (!live || !live.issuances || !live.issuances.length) return;
+    $('#live-wrap').style.display = '';
+    const nowS = Date.now() / 1000;
+    const from = nowS - 14 * 86400, to = nowS + 2 * 86400;
+    // day-ahead prediction per hour: newest issuance at least 12 h old at issue
+    const pred = new Map();
+    for (const iss of live.issuances) {
+      const t0 = iss.hours[0];
+      iss.hours.forEach((h, i) => {
+        const lead = (h - t0) / 3600;
+        if (h < from || h > to) return;
+        if (h <= nowS && lead < 12) return;      // matured hours: day-ahead only
+        const cur = pred.get(h);
+        if (!cur || lead < cur.lead) pred.set(h, { lead, v: iss.fcst[i] });
+      });
+    }
+    const obs = (live.obs.hours || []).map((h, i) => [h, live.obs.values[i]])
+      .filter(([h]) => h >= from);
+    const cv = $('#live-canvas');
+    const { ctx, w: CW, h: CH } = fitCanvas(cv, panelW(cv), 160);
+    ctx.clearRect(0, 0, CW, CH);
+    const pad = { l: 34, r: 8, t: 8, b: 20 };
+    const ph = [...pred.keys()].sort((a, b) => a - b);
+    const all = obs.map(([, v]) => v).concat(ph.map((h) => pred.get(h).v));
+    if (!all.length) return;
+    const ymax = Math.max(20, ...all) * 1.1;
+    const X = (h) => pad.l + ((h - from) / (to - from)) * (CW - pad.l - pad.r);
+    const Y = (v) => CH - pad.b - (v / ymax) * (CH - pad.t - pad.b);
+    ctx.font = '9.5px Inter'; ctx.fillStyle = 'rgba(210,220,235,0.55)';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (const v of [0, 15, 30, 45]) {
+      if (v > ymax) continue;
+      ctx.strokeStyle = 'rgba(200,210,225,0.07)';
+      ctx.beginPath(); ctx.moveTo(pad.l, Y(v)); ctx.lineTo(CW - pad.r, Y(v)); ctx.stroke();
+      ctx.fillText(String(v), pad.l - 5, Y(v));
+    }
+    // "now" marker
+    ctx.strokeStyle = 'rgba(86,200,255,0.5)'; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(X(nowS), pad.t); ctx.lineTo(X(nowS), CH - pad.b); ctx.stroke();
+    ctx.setLineDash([]);
+    // observations
+    ctx.strokeStyle = '#38b76a'; ctx.lineWidth = 1.3; ctx.beginPath();
+    let started = false;
+    for (const [h, v] of obs) {
+      const x = X(h), y = Y(v);
+      if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    // day-ahead prediction: solid for matured, dashed into the future
+    for (const dash of [false, true]) {
+      ctx.strokeStyle = '#f0a35a'; ctx.lineWidth = 1.7;
+      ctx.setLineDash(dash ? [5, 3] : []);
+      ctx.beginPath(); started = false;
+      for (const h of ph) {
+        if (dash !== (h > nowS)) { started = false; continue; }
+        const x = X(h), y = Y(pred.get(h).v);
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    const s = live.summary;
+    $('#live-note').innerHTML =
+      `<span class="dot" style="background:#38b76a"></span> SIATA stations ·
+       <span class="dot" style="background:#f0a35a"></span> day-ahead forecast
+       (dashed = upcoming) · updated ${String(live.updated || '').slice(0, 16)}Z<br>`
+      + (s ? `rolling scoreboard: RMSE <b>${fmt(s.rmse_f)}</b> vs persistence `
+           + `${fmt(s.rmse_p)} µg/m³ → skill <b>${s.skill_vs_persistence >= 0 ? '+' : ''}`
+           + `${fmt(s.skill_vs_persistence, 2)}</b> over ${s.n_days} scored days`
+           : 'scoreboard fills in as observations land');
+  }
+
   buildRevealPanel();
   drawForecast();
   buildDvPanel();
-  window.addEventListener('resize', () => { drawForecast(); drawDvCurve(); });
+  drawLive();
+  window.addEventListener('resize', () => { drawForecast(); drawDvCurve(); drawLive(); });
 
   return { drawStations, hitStation, exitDataValueMode };
 }
