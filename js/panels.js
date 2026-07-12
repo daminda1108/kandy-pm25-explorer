@@ -3,12 +3,12 @@
 // decomposition split, exposure/health, click-a-pixel point query.
 // Every numeric estimate carries its interval.
 
-import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1783633970';
+import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1783848702';
 
-let store, seekCb, curField;
-const LT = 5.5 * 3600;
+let store, seekCb, curField, city;
+let LT = 5.5 * 3600;
 
-export function initPanels(s, seek) { store = s; seekCb = seek; }
+export function initPanels(s, seek, c) { store = s; seekCb = seek; city = c; LT = c.tzOffsetH * 3600; }
 
 // Panel inner width for chart canvases: clamp so a wide layout (or a transient
 // mis-measure) can never feed back into the canvas size.
@@ -29,41 +29,46 @@ export function updatePanels(f) {
 // ── diurnal cycle: 90% band + smooth median + FECT obs + hour marker ─────────
 async function drawDiurnal(f) {
   const s = await store.getScalars(f.year);
+  const blind = f.tier === 'vand' && Array.isArray(s.Tv);
   const daySec = Math.floor((f.tsUTC + LT) / 86400) * 86400 - LT;
+  const hfrac = city.minuteLabel === '30' ? 0.5 : 0.0;   // native LT sub-hour grid
   const pts = [];                                  // [hour, T, T05, T95]
   const dayGis = [];                               // gi for each hour of the day
   for (let i = 0; i < s.hours_utc.length; i++) {
     const lt = s.hours_utc[i] + LT;
     if (Math.floor(lt / 86400) * 86400 - LT === daySec) {
-      const h = new Date(lt * 1000).getUTCHours() + 0.5;   // native :30 grid
-      pts.push([h, s.basin[i], s.T05[i], s.T95[i]]);
+      const h = new Date(lt * 1000).getUTCHours() + hfrac;
+      if (blind) pts.push([h, Math.max(s.Tv[i], 0), Math.max(s.Tv05[i], 0), Math.max(s.Tv95[i], 0)]);
+      else pts.push([h, s.basin[i], s.T05[i], s.T95[i]]);
       dayGis.push([h, i]);
     }
   }
   pts.sort((a, b) => a[0] - b[0]);
   const dayStr = new Date((f.tsUTC + LT) * 1000).toISOString().slice(0, 10);
   let obs = [];
-  try {
-    const fe = await store.getFect(f.year);
-    obs = fe.obs.filter((o) => o.d === dayStr).map((o) => [o.h + 0.5, o.v]);
-  } catch { /* no obs */ }
+  if (city.features.fect) {
+    try {
+      const fe = await store.getFect(f.year);
+      obs = fe.obs.filter((o) => o.d === dayStr).map((o) => [o.h + hfrac, o.v]);
+    } catch { /* no obs */ }
+  }
   // clicked-location diurnal: reconstruct that pixel across the day's hours so the
   // viewer SEES how the local diurnal amplitude differs from the basin mean.
   let pixLine = null;
   if (pinnedPx != null) {
     pixLine = [];
     for (const [h, gi] of dayGis.sort((a, b) => a[0] - b[0])) {
-      const fld = await store.field(f.year, gi);
+      const fld = await store.field(f.year, gi, f.tier);
       pixLine.push([h, fld.q50[pinnedPx]]);
     }
   }
-  const markHour = new Date((f.tsUTC + LT) * 1000).getUTCHours() + 0.5;
+  const markHour = new Date((f.tsUTC + LT) * 1000).getUTCHours() + hfrac;
   diurnalChart($('#diurnal-canvas'), pts, obs, markHour, pixLine);
   const loc = pinnedPx != null
     ? ` · <span class="dot dot-loc"></span> clicked location` : '';
   $('#diurnal-note').innerHTML = (obs.length
     ? `<span class="dot dot-line"></span> basin mean · <span class="dot dot-band"></span> 90% band · `
-      + `<span class="dot dot-obs"></span> Akurana sensor (${obs.length} h)`
+      + `<span class="dot dot-obs"></span> ${city.obsLabel} (${obs.length} h)`
     : `<span class="dot dot-line"></span> basin mean · <span class="dot dot-band"></span> 90% band`) + loc;
 }
 
@@ -200,15 +205,18 @@ function roundRect(ctx, x, y, w, h, r) {
 function drawWeather(f) {
   const rows = [];
   const arrow = `<span class="warrow" style="transform:rotate(${(f.wdir + 180) % 360}deg)">↑</span>`;
-  rows.push(['Temperature', `<b>${fmt(f.t2m)}</b> °C`]);
-  rows.push(['Humidity', `<b>${fmt(f.rh, 0)}</b> %`]);
-  rows.push(['Rain (this hour)', f.rain > 0.04 ? `<b>${fmt(f.rain, 1)}</b> mm` : '<b>0</b> mm']);
+  if (Number.isFinite(f.t2m)) rows.push([city.t2mLabel || 'Temperature', `<b>${fmt(f.t2m)}</b> °C`]);
+  if (Number.isFinite(f.rh)) rows.push(['Humidity', `<b>${fmt(f.rh, 0)}</b> %`]);
+  if (Number.isFinite(f.rain))
+    rows.push(['Rain (this hour)', f.rain > 0.04 ? `<b>${fmt(f.rain, 1)}</b> mm` : '<b>0</b> mm']);
   rows.push(['Wind', `<b>${fmt(f.wspd)}</b> m/s ${arrow} from ${compass(f.wdir)} (${fmt(f.wdir, 0)}°)`]);
   const mix = f.blh < 400 ? ['shallow', 'limited mixing'] : f.blh < 800
     ? ['moderate', 'partial mixing'] : ['deep', 'well mixed'];
   rows.push(['Boundary layer', `<b>${fmt(f.blh, 0)}</b> m <span class="chip chip-${mix[0]}">${mix[1]}</span>`]);
   $('#weather-body').innerHTML = rows.map(([k, v]) =>
     `<div class="hrow"><span>${k}</span><span class="hval">${v}</span></div>`).join('');
+  const wn = $('#weather-note');
+  if (wn) wn.textContent = city.windCaveat || '';
 }
 
 // ── decomposition split (regional background vs local increment) ─────────────
@@ -249,6 +257,7 @@ function drawDecomp(f) {
 
 // ── exposure & health (intervals always shown) ────────────────────────────────
 async function drawHealth(year) {
+  if (!city.features.health || !$('#health-body')) return;
   const h = await store.getHealth();
   const d = h.per_year[year] || h.per_year[String(year)];
   const yl = $('#health-year'); if (yl) yl.textContent = year;

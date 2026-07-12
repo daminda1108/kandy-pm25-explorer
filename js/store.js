@@ -1,16 +1,17 @@
 // store.js — payload loading + exact client-side field/wind reconstruction.
 //
-//   PM(x,y,t) = B(t) + [Tq(t) - B(t)] * P_local(x,y,t)
+//   PM(x,y,t) = B(t) + max(Tq(t) - B(t), 0) * P_local(x,y,t) + min(Tq(t) - B(t), 0)
 //   P_local quantised per hour as uint16 over [pmin,pmax]; anchors T,T05,T95 shipped.
-// Mirrors scripts/webapp_export.py (QA-gate-verified to 0.0014 ug/m3).
+// Mirrors scripts/webapp_export.py (QA-gate-verified). Where the payload carries the
+// zero-ground-data tier (Tv,Tv05,Tv95 — Medellín), the SAME P_local reconstructs
+// that tier with the alternative anchors (identical pattern by construction).
 
-import { getJSON, getGzip } from './util.js?v=1783633970';
-
-const BASE = 'data';
-const CORE_LAT = 7.2906, CORE_LON = 80.6337;
+import { getJSON, getGzip } from './util.js?v=1783848702';
 
 export class Store {
-  constructor() {
+  constructor(city) {
+    this.city = city;             // cities.js entry for the active city
+    this.base = city.base;
     this.meta = null;
     this.scalars = new Map();     // year -> scalars json
     this.months = new Map();      // `${year}-${mm}` -> {rows, npx}
@@ -18,20 +19,22 @@ export class Store {
     this.static = {};             // fields, layers, emission, hillshade img
     this.health = null;
     this.fect = new Map();
+    this.extras = new Map();      // showcase payloads (stations/forecast/datavalue/...)
     this._monthIndex = new Map(); // year -> Int32Array(gi -> local_i) + starts
     this.corePix = 0;
   }
 
   async init() {
-    this.meta = await getJSON(`${BASE}/meta.json`);
+    this.meta = await getJSON(`${this.base}/meta.json`);
     this.npx = this.meta.grid.n_lat * this.meta.grid.n_lon;
     const g = this.meta.grid;
-    this.corePix = nearest(g.lats, CORE_LAT) * g.n_lon + nearest(g.lons, CORE_LON);
-    await this._loadWind();
-    this.static.fields = await getJSON(`${BASE}/static/fields.json`);
-    this.static.layers = await getJSON(`${BASE}/static/layers.json`);
-    this.static.emission = await getJSON(`${BASE}/static/emission.json`);
-    this.static.hillshade = await this._loadImage(`${BASE}/static/hillshade.png`);
+    this.corePix = nearest(g.lats, this.city.core.lat) * g.n_lon
+                 + nearest(g.lons, this.city.core.lon);
+    if (this.meta.wind) await this._loadWind();
+    this.static.fields = await getJSON(`${this.base}/static/fields.json`);
+    this.static.layers = await getJSON(`${this.base}/static/layers.json`);
+    this.static.emission = await getJSON(`${this.base}/static/emission.json`);
+    this.static.hillshade = await this._loadImage(`${this.base}/static/hillshade.png`);
     return this;
   }
 
@@ -45,7 +48,7 @@ export class Store {
   }
 
   async _loadWind() {
-    const buf = await getGzip(`${BASE}/wind_library.bin.gz`);
+    const buf = await getGzip(`${this.base}/wind_library.bin.gz`);
     const q = new Int16Array(buf);
     const sh = this.meta.wind.shape;            // [16,2,2,64,64]
     const nf = sh[0] * sh[1] * sh[2];           // 64 fields
@@ -61,7 +64,7 @@ export class Store {
 
   async getScalars(year) {
     if (this.scalars.has(year)) return this.scalars.get(year);
-    const s = await getJSON(`${BASE}/scalars_${year}.json`);
+    const s = await getJSON(`${this.base}/scalars_${year}.json`);
     this.scalars.set(year, s);
     // month index: local position of each global hour within its month file
     const hrs = s.hours_utc;
@@ -81,22 +84,30 @@ export class Store {
   async getMonth(year, mm) {
     const key = `${year}-${mm}`;
     if (this.months.has(key)) return this.months.get(key);
-    const buf = await getGzip(`${BASE}/plocal_${year}_${String(mm).padStart(2, '0')}.bin.gz`);
+    const buf = await getGzip(`${this.base}/plocal_${year}_${String(mm).padStart(2, '0')}.bin.gz`);
     const rows = new Uint16Array(buf);          // (nhours*npx) row-major
     const rec = { rows, npx: this.npx };
     this.months.set(key, rec);
     return rec;
   }
 
+  // True when the payload carries the zero-ground-data (satellite-anchored) tier.
+  hasBlindTier(scalars) { return Array.isArray(scalars.Tv); }
+
   // Reconstruct the three-quantile field for a given (year, global hour index).
-  async field(year, gi) {
+  // tier: 'model' (default, sensor-anchored) | 'vand' (zero ground data).
+  async field(year, gi, tier = 'model') {
     const s = await this.getScalars(year);
     const { li, mmOf } = this._monthIndex.get(year);
     const mm = mmOf[gi];
     const month = await this.getMonth(year, mm);
     const npx = this.npx, off = li[gi] * npx;
     const pmin = s.pmin[gi], pmax = s.pmax[gi], span = pmax - pmin;
-    const B = s.B[gi], T = s.T[gi], T05 = s.T05[gi], T95 = s.T95[gi];
+    const blind = tier === 'vand' && this.hasBlindTier(s);
+    const B = s.B[gi];
+    const T = blind ? s.Tv[gi] : s.T[gi];
+    const T05 = blind ? s.Tv05[gi] : s.T05[gi];
+    const T95 = blind ? s.Tv95[gi] : s.T95[gi];
     const q50 = new Float32Array(npx), q05 = new Float32Array(npx),
           q95 = new Float32Array(npx), P = new Float32Array(npx);
     // Increment-SPLIT reconstruction (matches build_additive_field_v2 + webapp_export,
@@ -125,7 +136,7 @@ export class Store {
     // shows), not the raw anchors: on the cleanest deep-night hours the raw
     // T-anchor can dip slightly negative and the model's convention is a
     // physical floor at 0 — readouts must match the rendered field.
-    return { q50, q05, q95, P, B, T, T05, T95, gi, year, peak,
+    return { q50, q05, q95, P, B, T, T05, T95, gi, year, peak, tier,
              bLo: s.B_lo[gi], bHi: s.B_hi[gi],
              basin: s50 / npx, core: q50[cp],
              basin05: Math.min(s05, s50) / npx, basin95: Math.max(s95, s50) / npx,
@@ -140,6 +151,7 @@ export class Store {
 
   // Reconstruct the 64x64 terrain wind field via the shipped blend (parity-verified).
   async windField(year, gi) {
+    if (!this.wind) return null;
     const s = await this.getScalars(year);
     const w = this.wind, cells = w.cells;
     const i0 = s.i0[gi], i1 = (i0 + 1) % w.nDir;
@@ -163,13 +175,19 @@ export class Store {
   }
 
   async getHealth() {
-    if (!this.health) this.health = await getJSON(`${BASE}/health.json`);
+    if (!this.health) this.health = await getJSON(`${this.base}/health.json`);
     return this.health;
   }
   async getFect(year) {
     if (!this.fect.has(year))
-      this.fect.set(year, await getJSON(`${BASE}/fect_${year}.json`));
+      this.fect.set(year, await getJSON(`${this.base}/fect_${year}.json`));
     return this.fect.get(year);
+  }
+  // Showcase payloads (proving-ground cities): stations / showcase / forecast / datavalue.
+  async getExtra(name) {
+    if (!this.extras.has(name))
+      this.extras.set(name, await getJSON(`${this.base}/${name}.json`));
+    return this.extras.get(name);
   }
 }
 

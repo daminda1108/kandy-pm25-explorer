@@ -3,32 +3,32 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Kandy PM2.5 Explorer · 2019–2023</title>
-  <meta name="description" content="Hourly 1 km PM2.5 fields for Kandy, Sri Lanka (2019–2023): heatmap, terrain wind, uncertainty, background/local split, weather conditions and documented haze events." />
+  <title>Medellín PM2.5 · proving ground · 2019–2023</title>
+  <meta name="description" content="The Kandy PM2.5 method run blind against Medellín's dense monitoring network: zero-sensor reconstruction, day-ahead forecast vs reality, and the measured value of ground monitors." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=1783848702" />
+  <link rel="stylesheet" href="../css/style.css?v=1783848702" />
 </head>
 <body>
   <div id="loading">
     <div class="load-inner">
       <div class="spinner"></div>
-      <span>Loading Kandy PM<sub>2.5</sub> fields…</span>
+      <span>Loading Medellín PM<sub>2.5</sub> fields…</span>
     </div>
   </div>
 
   <header>
     <div class="title-wrap">
       <div>
-        <h1>Kandy PM<sub>2.5</sub> Explorer</h1>
-        <p class="subtitle">Research reconstruction · annual level anchored to satellite data ·
-          street-scale pattern is physics-based and indicative</p>
+        <h1>Medellín PM<sub>2.5</sub> <span class="pg-tag">proving ground</span></h1>
+        <p class="subtitle">The Kandy method run blind against a city that has monitors:
+          fields built from 0–2 sensors, then scored against the withheld network</p>
       </div>
       <span class="years">2019 – 2023</span>
     </div>
     <div class="header-right">
-      <a href="medellin/" class="method-link">Medellín proving ground</a>
-      <a href="method.html" class="method-link">How it works</a>
+      <a href="../" class="method-link">← Kandy Explorer</a>
+      <a href="../method.html" class="method-link">How it works</a>
     </div>
   </header>
 
@@ -38,7 +38,7 @@
     <select id="sel-month" aria-label="Month"></select>
     <select id="sel-day" aria-label="Day"></select>
     <select id="sel-hour" aria-label="Hour"></select>
-    <span class="dt-hint">Sri Lanka time · hourly grid at :30</span>
+    <span class="dt-hint">Colombia time · hourly grid at :00</span>
     <span class="spacer"></span>
     <div class="transport">
       <button id="prev" title="Previous hour (←)">&#9664;</button>
@@ -80,6 +80,10 @@
 
       <div class="controls">
         <label class="tog"><input type="checkbox" id="uq" /> 90% upper bound</label>
+        <div class="seg tier-seg" id="tier-seg" role="group" aria-label="Ground data used" style="display:none">
+          <button class="seg-btn" data-tier="vand">0 sensors (blind)</button>
+          <button class="seg-btn active" data-tier="model">2 sensors</button>
+        </div>
         <span class="spacer"></span>
         <label class="tog"><input type="checkbox" id="layer-roads" checked /> roads</label>
         <label class="tog"><input type="checkbox" id="layer-water" checked /> water</label>
@@ -87,11 +91,11 @@
         <label class="tog"><input type="checkbox" id="layer-landmarks" checked /> labels</label>
       </div>
 
-      <div class="episodes-row" id="episodes-row">
-        <span class="ep-label">Documented events:</span>
-        <span id="episodes"></span>
-      </div>
-      <div id="episode-card" class="episode-card"></div>
+      <p class="regime-note">Honest framing: Medellín is local-emission-dominated (f≈0.6–0.85);
+        Kandy is regional-episodic (f≈0.25). This proving ground demonstrates the machinery,
+        the spatial skill and the value of monitoring data — not that Kandy’s transboundary
+        episodes are equally predictable. Hourly coverage follows the driver archive and is
+        incomplete in 2021–2022.</p>
 
       <div class="download-row">
         <span class="ep-label">Download:</span>
@@ -102,6 +106,35 @@
     </section>
 
     <aside class="rail">
+      <div class="panel panel-showcase">
+        <h3>Blind → reveal <span class="hint">the withheld network</span></h3>
+        <label class="tog reveal-tog"><input type="checkbox" id="reveal-toggle" />
+          reveal the real monitoring stations</label>
+        <div id="scorecard-body"></div>
+        <div id="station-detail" class="kv"></div>
+        <p class="note">Dots = measured 2019–2023 station means (same colour scale).
+          White ring = the 2 anchor sensors; cyan ring = permanently held-out test
+          stations. Click a dot for model-vs-measured.</p>
+      </div>
+
+      <div class="panel panel-showcase">
+        <h3>Value of monitoring data <span class="hint">the data-value curve</span></h3>
+        <div class="dv-row">
+          <span class="dv-lab">monitors used:</span>
+          <input type="range" id="dv-slider" min="0" max="7" step="1" value="0" />
+          <span id="dv-nlabel" class="dv-n">0</span>
+          <button id="dv-exit" class="dl-btn" style="display:none">back to hourly</button>
+        </div>
+        <p id="dv-note" class="note">Drag the slider to enter data-value mode.</p>
+        <canvas id="dv-curve"></canvas>
+      </div>
+
+      <div class="panel panel-showcase">
+        <h3>Forecast vs reality <span class="hint">day-ahead, 2023</span></h3>
+        <canvas id="forecast-canvas"></canvas>
+        <p id="forecast-note" class="note"></p>
+      </div>
+
       <div class="panel">
         <h3>Temporal variation <span class="hint">selected day</span></h3>
         <canvas id="diurnal-canvas"></canvas>
@@ -112,6 +145,7 @@
       <div class="panel">
         <h3>Weather <span class="hint">ERA5, this hour</span></h3>
         <div id="weather-body" class="kv"></div>
+        <p id="weather-note" class="note"></p>
       </div>
       <div class="panel">
         <h3>Background vs local</h3>
@@ -121,10 +155,6 @@
       <div class="panel" id="point-panel">
         <h3>Point query <span class="hint">click the map</span></h3>
         <div id="point-body" class="kv"></div>
-      </div>
-      <div class="panel">
-        <h3>Exposure &amp; health · <span id="health-year"></span></h3>
-        <div id="health-body" class="kv"></div>
       </div>
     </aside>
   </main>
@@ -138,6 +168,7 @@
     <div id="credits" class="credits"></div>
   </footer>
 
-  <script type="module" src="js/app.js?v=1783848702"></script>
+  <script>window.CITY_ID = 'medellin';</script>
+  <script type="module" src="../js/app.js?v=1783848702"></script>
 </body>
 </html>

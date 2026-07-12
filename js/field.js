@@ -1,11 +1,11 @@
-// field.js — render the 16x16 PM field as a smooth heatmap over the hillshade,
+// field.js — render the NxN PM field as a smooth heatmap over the hillshade,
 // with WHO-scale colour. Scale mode: 'auto' switches to the fixed universal turbo
 // scale when the hour is episode-grade (98th pct >= 35 ug/m3, WHO IT-1), matching
 // the model's figure convention; 'universal' / 'adaptive' force either mode.
+// Grid size comes from the caller (meta.grid) — Kandy 16x16, Medellín 24x24.
 
-import { makeLUT, clamp } from './util.js?v=1783633970';
+import { makeLUT, clamp } from './util.js?v=1783848702';
 
-const N = 16;                       // grid is 16x16
 const LUT_YLORRD = makeLUT('ylorrd', 1.15);
 const LUT_TURBO = makeLUT('turbo', 0.85);
 
@@ -47,8 +47,10 @@ export function colourMode(q50, pref = 'auto') {
 }
 
 // Paint the field. `canvas` is the PM layer; hillshade drawn beneath by caller.
-export function paintField(canvas, q50, cm) {
+// `n` is the (square) grid dimension from meta.grid.n_lat.
+export function paintField(canvas, q50, cm, n) {
   const W = canvas.width, H = canvas.height;
+  const N = n || Math.round(Math.sqrt(q50.length));
   const up = upsample(q50, N, W, H);
   const img = new ImageData(W, H);
   const { lut, lo, hi } = cm;

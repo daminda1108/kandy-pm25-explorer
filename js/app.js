@@ -1,23 +1,27 @@
-// app.js — Kandy PM2.5 Explorer orchestrator.
+// app.js — PM2.5 Explorer orchestrator (city-aware: Kandy default, Medellín
+// proving ground). All per-city behaviour comes from cities.js.
 
-import { $, el, fmt, fmtCI, clamp } from './util.js?v=1783633970';
-import { Store } from './store.js?v=1783633970';
-import { colourMode, paintField, paintColourbar } from './field.js?v=1783633970';
-import { WindLayer } from './wind.js?v=1783633970';
-import { Timeline } from './timeline.js?v=1783633970';
-import { Overlay } from './overlay.js?v=1783633970';
-import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1783633970';
-import { MapView } from './mapview.js?v=1783633970';
-import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1783633970';
+import { $, el, fmt, fmtCI, clamp } from './util.js?v=1783848702';
+import { activeCity } from './cities.js?v=1783848702';
+import { Store } from './store.js?v=1783848702';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1783848702';
+import { WindLayer } from './wind.js?v=1783848702';
+import { Timeline } from './timeline.js?v=1783848702';
+import { Overlay } from './overlay.js?v=1783848702';
+import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1783848702';
+import { initShowcase } from './showcase.js?v=1783848702';
+import { MapView } from './mapview.js?v=1783848702';
+import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1783848702';
 
 const MAP = 840;                    // internal map canvas resolution (square)
-const LT_OFFSET = 5.5 * 3600;       // Asia/Colombo = UTC+5:30
+const CITY = activeCity();
+const LT_OFFSET = CITY.tzOffsetH * 3600;
 
 const state = { year: null, gi: 0, playing: false, showUQ: false,
-                scaleMode: 'auto', cur: null, pin: null };
+                scaleMode: 'auto', cur: null, pin: null, tier: 'model' };
 
-const store = new Store();
-let timeline, wind, overlay, hillCtx, mapview;
+const store = new Store(CITY);
+let timeline, wind, overlay, hillCtx, mapview, showcase;
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
                 'August', 'September', 'October', 'November', 'December'];
@@ -31,6 +35,7 @@ function ltLabel(tsUTC) {
   return { day, hm: `${hh}:${mm}` };
 }
 function seasonOf(month) {
+  if (!CITY.seasonCode) return MONTHS[month - 1].slice(0, 3);
   return ['DJF', 'DJF', 'MAM', 'MAM', 'MAM', 'JJA', 'JJA', 'JJA', 'SON', 'SON', 'SON', 'DJF'][month - 1];
 }
 function daypart(h) {
@@ -44,7 +49,7 @@ async function boot() {
 
   // map stack — canvases live inside the transformed pan wrapper
   const pan = $('#mappan');
-  for (const id of ['hill', 'field', 'wind', 'vec']) {
+  for (const id of ['hill', 'field', 'wind', 'vec', 'stations']) {
     const cv = el('canvas', { id: `cv-${id}`, class: 'maplayer', width: MAP, height: MAP });
     pan.append(cv);
   }
@@ -65,7 +70,7 @@ async function boot() {
 
   wireControls();
   wireDatetime();
-  initPanels(store, (y, gi) => seek(y, gi));
+  initPanels(store, (y, gi) => seek(y, gi), CITY);
 
   // preload all years' scalars for the strip (small, gzip over the wire)
   for (const y of store.meta.years) {
@@ -77,9 +82,26 @@ async function boot() {
   buildEpisodes();
   buildCredits();
 
-  // initial view: a documented episode
-  const ep = store.meta.episodes.find((e) => e.id === 'dec2022') || store.meta.episodes[0];
-  await seekToTs(ep.ts);
+  // proving-ground extras (station reveal, forecast scoreboard, data-value slider)
+  if (CITY.features.showcase) {
+    showcase = await initShowcase({
+      store, city: CITY, mapview,
+      stationCanvas: $('#cv-stations'),
+      getState: () => state,
+      exitToHour: () => seek(state.year, state.gi),
+      setTier,
+    });
+  }
+
+  // blind-tier control only where the payload carries the zero-data tier
+  const s0 = await store.getScalars(store.meta.years[0]);
+  const tierSeg = $('#tier-seg');
+  if (tierSeg && store.hasBlindTier(s0)) tierSeg.style.display = '';
+
+  // initial view: a documented episode, else the city's default timestamp
+  const ep = store.meta.episodes.find((e) => e.id === CITY.defaultEpisode)
+          || store.meta.episodes[0];
+  await seekToTs(ep ? ep.ts : CITY.defaultTs);
   wind.start();
   const load = $('#loading');
   load.classList.add('done');
@@ -96,17 +118,25 @@ function drawHillshade() {
 }
 
 async function seek(year, gi) {
+  if (showcase) showcase.exitDataValueMode(false);
   state.year = year;
   const s = await store.getScalars(year);
   state.gi = clamp(gi, 0, s.hours_utc.length - 1);
-  const f = await store.field(year, state.gi);
+  const f = await store.field(year, state.gi, state.tier);
   state.cur = f;
   render(f);
   timeline.setCursor(year, state.gi);
   syncDatetime(f.tsUTC);
   const wf = await store.windField(year, state.gi);
-  wind.setField(wf);
+  if (wf) wind.setField(wf);
   updatePanels(f);
+}
+
+async function setTier(tier) {
+  state.tier = tier;
+  for (const b of document.querySelectorAll('#tier-seg .seg-btn'))
+    b.classList.toggle('active', b.dataset.tier === tier);
+  if (state.year != null) await seek(state.year, state.gi);
 }
 
 async function seekToTs(tsStr) {
@@ -127,8 +157,9 @@ function render(f) {
   drawHillshade();
   const q = state.showUQ ? f.q95 : f.q50;
   const cm = colourMode(f.q50, state.scaleMode);   // range keyed to the median field
-  paintField($('#cv-field'), q, cm);
+  paintField($('#cv-field'), q, cm, store.meta.grid.n_lat);
   overlay.draw();
+  if (showcase) showcase.drawStations();
   paintColourbar($('#colourbar'), cm);
   const cbT = $('#cb-ticks'); cbT.innerHTML = '';
   cm.ticks.forEach((t, i) => {
@@ -141,12 +172,15 @@ function render(f) {
   const { day, hm } = ltLabel(f.tsUTC);
   const month = ltDate(f.tsUTC).getUTCMonth() + 1;
   const lh = ltDate(f.tsUTC).getUTCHours();
+  const tierTag = f.tier === 'vand'
+    ? ' <span class="uqtag">zero-ground-data tier</span>' : '';
   $('#map-title').innerHTML =
     `<b>${day} ${hm}</b> · ${seasonOf(month)}, ${daypart(lh)}`
     + `<span class="readout">basin ${fmtCI(f.basin, f.basin05, f.basin95)} · `
     + `centre ${fmtCI(f.core, f.core05, f.core95)} · `
     + `peak ${fmtCI(f.peak.v, f.peak.lo, f.peak.hi)} µg/m³`
     + ` <span class="dim">near ${nearLandmark(f.peak.lat, f.peak.lon)}</span></span>`
+    + tierTag
     + (state.showUQ ? ' <span class="uqtag">showing 90% upper bound</span>' : '');
 }
 
@@ -165,7 +199,7 @@ function wireDatetime() {
   for (const y of store.meta.years) ySel.append(el('option', { value: y }, String(y)));
   MONTHS.forEach((m, i) => mSel.append(el('option', { value: i + 1 }, m)));
   for (let h = 0; h < 24; h++)
-    hSel.append(el('option', { value: h }, `${String(h).padStart(2, '0')}:30`));
+    hSel.append(el('option', { value: h }, `${String(h).padStart(2, '0')}:${CITY.minuteLabel}`));
   const rebuildDays = () => {
     const y = +ySel.value, m = +mSel.value;
     const nd = new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -177,7 +211,7 @@ function wireDatetime() {
   const go = () => {
     rebuildDays();
     const ts = `${ySel.value}-${String(mSel.value).padStart(2, '0')}-${String(dSel.value).padStart(2, '0')}`
-             + ` ${String(hSel.value).padStart(2, '0')}:30`;
+             + ` ${String(hSel.value).padStart(2, '0')}:${CITY.minuteLabel}`;
     seekToTs(ts);
   };
   for (const s of [ySel, mSel, dSel, hSel]) s.addEventListener('change', go);
@@ -207,14 +241,17 @@ function wireControls() {
   $('#next').addEventListener('click', () => step(1));
   $('#uq').addEventListener('change', (e) => { state.showUQ = e.target.checked; if (state.cur) render(state.cur); });
   // scale mode segmented control
-  for (const btn of document.querySelectorAll('.seg-btn')) {
+  for (const btn of document.querySelectorAll('.map-foot .seg-btn')) {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.seg-btn').forEach((b) => b.classList.remove('active'));
+      document.querySelectorAll('.map-foot .seg-btn').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
       state.scaleMode = btn.dataset.mode;
       if (state.cur) render(state.cur);
     });
   }
+  // blind-tier segmented control (proving-ground cities)
+  for (const btn of document.querySelectorAll('#tier-seg .seg-btn'))
+    btn.addEventListener('click', () => setTier(btn.dataset.tier));
   for (const key of ['roads', 'water', 'emission', 'landmarks']) {
     const cb = $(`#layer-${key}`);
     if (cb) cb.addEventListener('change', (e) => { overlay.show[key] = e.target.checked; overlay.draw(); });
@@ -231,10 +268,10 @@ function wireControls() {
     clearTimeout(rsT);
     rsT = setTimeout(() => { if (state.cur) { render(state.cur); updatePanels(state.cur); } }, 160);
   });
-  $('#dl-png').addEventListener('click', () => state.cur && downloadPNG(store, state.cur));
-  $('#dl-csv').addEventListener('click', () => state.cur && downloadFieldCSV(store, state.cur));
+  $('#dl-png').addEventListener('click', () => state.cur && downloadPNG(store, state.cur, CITY));
+  $('#dl-csv').addEventListener('click', () => state.cur && downloadFieldCSV(store, state.cur, CITY));
   $('#dl-point').addEventListener('click', () => {
-    if (state.cur && state.pin) downloadPointCSV(store, state.cur, state.pin.lat, state.pin.lon);
+    if (state.cur && state.pin) downloadPointCSV(store, state.cur, state.pin.lat, state.pin.lon, CITY);
   });
 }
 
@@ -255,6 +292,9 @@ async function step(d, wrap = false) {
 }
 
 function buildEpisodes() {
+  const row = $('#episodes-row');
+  if (!row) return;
+  if (!store.meta.episodes.length) { row.style.display = 'none'; return; }
   const box = $('#episodes'); box.innerHTML = '';
   for (const ep of store.meta.episodes) {
     const b = el('button', { class: 'episode-btn', title: ep.note,
@@ -278,6 +318,8 @@ async function onPixelClick(e) {
   const [lon, lat] = mapview.screenToLatLon(e.clientX, e.clientY);
   const b = store.meta.grid.bbox;
   if (lon < b[0] || lon > b[2] || lat < b[1] || lat > b[3]) return;
+  // station dots take priority when the reveal layer is on
+  if (showcase && showcase.hitStation(lat, lon)) return;
   state.pin = { lat, lon };
   $('#dl-point').disabled = false;
   pointQuery(lat, lon);                 // rail panel (fallback / full history)
