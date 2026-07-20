@@ -1,0 +1,60 @@
+{
+ "city": "kandy",
+ "target": "locked area-anchored T(t) (basin area mean, ug/m3)",
+ "features": [
+  "sin_h",
+  "cos_h",
+  "sin_doy",
+  "cos_doy",
+  "dow",
+  "blh",
+  "u10",
+  "v10",
+  "wspd",
+  "t2m",
+  "c_prior"
+ ],
+ "cells": [
+  [
+   7.25,
+   80.5
+  ],
+  [
+   7.25,
+   80.75
+  ]
+ ],
+ "regional_stations": [
+  {
+   "name": "Nuwara Eliya",
+   "lat": 6.968,
+   "lon": 80.772,
+   "km": 40
+  },
+  {
+   "name": "Kegalle",
+   "lat": 7.253,
+   "lon": 80.349,
+   "km": 25
+  },
+  {
+   "name": "Kurunegala",
+   "lat": 7.494,
+   "lon": 80.368,
+   "km": 40
+  }
+ ],
+ "self_check": false,
+ "trained_rows": 43824,
+ "trained_span": [
+  "2019-01-01",
+  "2023-12-31"
+ ],
+ "holdout_2023": {
+  "rmse": 6.6,
+  "level_bias_pct": -14.6
+ },
+ "pedigree": "Recipe validated at Medellin against 15-22 withheld stations (F-M2 backtest: forecast RMSE 5.04 vs 24h-persistence 6.49, skill +0.22; live self-checking scoreboard running since 2026-07). Kandy has no public in-basin station, so this forecast is shown with that pedigree and NO local self-check.",
+ "regional_note": "The three Sri Lankan stations logged alongside are 25-40 km outside the basin. They sample the regional/transboundary background (~76% of Kandy PM2.5, f_local=0.24), so they are context for B(t) \u2014 not a check on the Kandy field.",
+ "driver_note": "Drivers from the NASA GMAO CFAPI forecast (keyless): chm v1 PM25 -> c_prior, met x1 U/V/T/ZPBL; mean of the two 0.25 deg cells covering the basin."
+}

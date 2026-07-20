@@ -2,3 +2,10 @@ fatal: unable to access 'https://github.com/daminda1108/kandy-pm25-explorer.git/
 To https://github.com/daminda1108/kandy-pm25-explorer.git
    0cc44bf..47f16d6  main -> main
 LANDED 2 Mon Jul 20 09:13:40 SLST 2026
+error: RPC failed; curl 55 Send failure: Connection was aborted
+send-pack: unexpected disconnect while reading sideband packet
+fatal: the remote end hung up unexpectedly
+Everything up-to-date
+To https://github.com/daminda1108/kandy-pm25-explorer.git
+   47f16d6..ba37e1e  main -> main
+LANDED 2 Mon Jul 20 10:40:15 SLST 2026

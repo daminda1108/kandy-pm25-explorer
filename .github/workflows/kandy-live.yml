@@ -1,0 +1,45 @@
+name: kandy-live-forecast
+
+on:
+  schedule:
+    - cron: "27 * * * *"    # hourly: log regional context; issue when a new
+                            # GEOS-CF run is available (the script decides)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kandy-live
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: install deps
+        run: pip install --quiet numpy pandas requests lightgbm
+      - name: run live forecast
+        env:
+          WAQI_TOKEN: ${{ secrets.WAQI_TOKEN }}
+        run: python live/kandy_live.py
+      - name: commit state
+        run: |
+          git config user.name  "kandy-live-bot"
+          git config user.email "actions@github.com"
+          git add data/live.json
+          if git diff --cached --quiet; then
+            echo "no change"
+          else
+            git commit -m "live: kandy $(date -u +%Y-%m-%dT%H:%MZ)"
+            for i in 1 2 3 4 5; do
+              git pull --rebase --autostash origin main && git push origin main && exit 0
+              sleep 10
+            done
+            exit 1
+          fi
