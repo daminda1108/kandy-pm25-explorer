@@ -1,17 +1,17 @@
 // app.js — PM2.5 Explorer orchestrator (city-aware: Kandy default, Medellín
 // proving ground). All per-city behaviour comes from cities.js.
 
-import { $, el, fmt, fmtCI, clamp } from './util.js?v=1783879241';
-import { activeCity } from './cities.js?v=1783879241';
-import { Store } from './store.js?v=1783879241';
-import { colourMode, paintField, paintColourbar } from './field.js?v=1783879241';
-import { WindLayer } from './wind.js?v=1783879241';
-import { Timeline } from './timeline.js?v=1783879241';
-import { Overlay } from './overlay.js?v=1783879241';
-import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1783879241';
-import { initShowcase } from './showcase.js?v=1783879241';
-import { MapView } from './mapview.js?v=1783879241';
-import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1783879241';
+import { $, el, fmt, fmtCI, clamp } from './util.js?v=1784518359';
+import { activeCity } from './cities.js?v=1784518359';
+import { Store } from './store.js?v=1784518359';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1784518359';
+import { WindLayer } from './wind.js?v=1784518359';
+import { Timeline } from './timeline.js?v=1784518359';
+import { Overlay } from './overlay.js?v=1784518359';
+import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1784518359';
+import { initShowcase } from './showcase.js?v=1784518359';
+import { MapView } from './mapview.js?v=1784518359';
+import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1784518359';
 
 const MAP = 840;                    // internal map canvas resolution (square)
 const CITY = activeCity();
@@ -172,8 +172,15 @@ function render(f) {
   const { day, hm } = ltLabel(f.tsUTC);
   const month = ltDate(f.tsUTC).getUTCMonth() + 1;
   const lh = ltDate(f.tsUTC).getUTCHours();
-  const tierTag = f.tier === 'vand'
-    ? ' <span class="uqtag">zero-ground-data tier</span>' : '';
+  // provenance flags: the blind (zero-ground-data) tier, and — for years past the
+  // satellite anchor — the modelled extension tier (meta.tiers.extension).
+  const extYears = (store.meta.tiers || {}).extension || [];
+  const isExt = extYears.includes(f.year);
+  const tierTag = (f.tier === 'vand'
+      ? ' <span class="uqtag">zero-ground-data tier</span>' : '')
+    + (isExt ? ' <span class="uqtag exttag" title="'
+        + (store.meta.tier_note || '').replace(/"/g, '&quot;')
+        + '">modelled extension year</span>' : '');
   $('#map-title').innerHTML =
     `<b>${day} ${hm}</b> · ${seasonOf(month)}, ${daypart(lh)}`
     + `<span class="readout">basin ${fmtCI(f.basin, f.basin05, f.basin95)} · `
@@ -182,6 +189,11 @@ function render(f) {
     + ` <span class="dim">near ${nearLandmark(f.peak.lat, f.peak.lon)}</span></span>`
     + tierTag
     + (state.showUQ ? ' <span class="uqtag">showing 90% upper bound</span>' : '');
+  const tb = $('#tier-banner');
+  if (tb) {
+    tb.textContent = isExt ? (store.meta.tier_note || '') : '';
+    tb.classList.toggle('show', isExt);
+  }
 }
 
 function nearLandmark(lat, lon) {

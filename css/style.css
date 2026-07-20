@@ -292,3 +292,11 @@ footer { padding: 16px 26px 34px; border-top: 1px solid var(--line); margin-top:
 #dv-slider { flex: 1 1 90px; accent-color: var(--accent2); min-width: 80px; }
 #dv-curve, #forecast-canvas { width: 100%; display: block; }
 #weather-note { font-size: 10px; }
+
+/* extension-year provenance badge (Kandy 2024+: modelled level/timing, climatological pattern) */
+.uqtag.exttag { background: rgba(240, 163, 90, .16); border-color: rgba(240, 163, 90, .45);
+  color: #f0a35a; cursor: help; }
+.tier-banner { margin: 8px 2px 2px; font-size: 11px; line-height: 1.55; color: var(--ink-dim);
+  border-left: 3px solid rgba(240, 163, 90, .55); padding: 6px 10px;
+  background: rgba(240, 163, 90, .05); border-radius: 0 8px 8px 0; display: none; }
+.tier-banner.show { display: block; }
