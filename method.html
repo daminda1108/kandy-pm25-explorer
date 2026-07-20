@@ -6,7 +6,7 @@
   <title>How it works · Kandy PM2.5 Explorer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=1784523379" />
+  <link rel="stylesheet" href="css/style.css?v=1784570594" />
   <style>
     .doc { max-width: 820px; margin: 0 auto; padding: 10px 22px 60px; line-height: 1.65; }
     .doc h2 { font-size: 22px; margin: 34px 0 10px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
@@ -148,7 +148,7 @@
   </div>
 
   <script type="module">
-    import { getJSON } from './js/util.js?v=1784523379';
+    import { getJSON } from './js/util.js?v=1784570594';
     const meta = await getJSON('data/meta.json');
     const ul = document.getElementById('doc-credits');
     for (const [what, who] of meta.credits) {
