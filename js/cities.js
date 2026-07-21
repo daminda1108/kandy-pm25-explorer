@@ -45,14 +45,25 @@ export const CITIES = {
     minuteLabel: '00',
     core: { lat: 6.24434, lon: -75.57355 },
     seasonCode: false,           // equatorial: monsoon-season codes are meaningless
-    features: { fect: false, health: false, showcase: true, weatherFull: false },
+    // fect:true here means "there is a ground-truth overlay for the diurnal chart" —
+    // at Medellín that file carries the SIATA network mean (display only, never assimilated)
+    features: { fect: true, health: false, showcase: true, weatherFull: false },
+    obsLabel: 'SIATA network mean',
     // displayed t2m is lapse-adjusted from the basin-area mean to the valley floor
     // (validated vs SKMD airport: r 0.88, residual -1.5 C) — label it as such
     t2mLabel: 'Temperature (valley floor)',
-    windCaveat: 'Wind animation shows the model’s diagnostic terrain flow; hourly '
-      + 'agreement with valley-floor airport winds is weak (r≈0.2) — read it as '
-      + 'illustrative. The PM2.5 field itself does not depend on it.',
-    obsLabel: null,
+    // rain = GPM IMERG basin average over 1,300-2,800 m of relief -> legitimately wetter
+    // than the valley-floor gauge (IDEAM Olaya Herrera ~1,650 mm/yr). Say so.
+    rainLabel: 'Rain (basin average, this hour)',
+    rainCaveat: 'Rainfall is a satellite estimate (GPM IMERG) averaged over the whole '
+      + 'basin including the wet upper slopes, so it runs higher than a valley-floor '
+      + 'rain gauge — the floor is drier than the number shown.',
+    // updated after the B2 recalibration (2026-07-16): the old copy quoted the
+    // pre-fix r≈0.2, which is no longer what the shipped wind does.
+    windCaveat: 'Wind is recalibrated against airport observations (thermal valley '
+      + 'circulation fitted to SKMD): on withheld 2023 data it tracks observed speed '
+      + 'at r≈0.6 and the daily cycle at r≈0.9. The PM2.5 field itself does not depend '
+      + 'on it.',
     defaultTs: '2019-03-12 08:00',
     downloadPrefix: 'medellin_pm25',
     captionName: 'Medellín PM2.5 (proving ground)',

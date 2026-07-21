@@ -2,7 +2,7 @@
 // (basin-mean PM). Clicking/dragging selects an hour. Month separators + year
 // labels; crisp at devicePixelRatio.
 
-import { makeLUT, clamp, fitCanvas } from './util.js?v=1784608760';
+import { makeLUT, clamp, fitCanvas } from './util.js?v=1784612562';
 
 const LUT = makeLUT('ylorrd', 1.1);
 const STRIP_LO = 8, STRIP_HI = 45;   // fixed strip colour range across all years

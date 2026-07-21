@@ -3,7 +3,7 @@
 // decomposition split, exposure/health, click-a-pixel point query.
 // Every numeric estimate carries its interval.
 
-import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1784608760';
+import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1784612562';
 
 let store, seekCb, curField, city;
 let LT = 5.5 * 3600;
@@ -208,7 +208,8 @@ function drawWeather(f) {
   if (Number.isFinite(f.t2m)) rows.push([city.t2mLabel || 'Temperature', `<b>${fmt(f.t2m)}</b> °C`]);
   if (Number.isFinite(f.rh)) rows.push(['Humidity', `<b>${fmt(f.rh, 0)}</b> %`]);
   if (Number.isFinite(f.rain))
-    rows.push(['Rain (this hour)', f.rain > 0.04 ? `<b>${fmt(f.rain, 1)}</b> mm` : '<b>0</b> mm']);
+    rows.push([city.rainLabel || 'Rain (this hour)',
+               f.rain > 0.04 ? `<b>${fmt(f.rain, 1)}</b> mm` : '<b>0</b> mm']);
   rows.push(['Wind', `<b>${fmt(f.wspd)}</b> m/s ${arrow} from ${compass(f.wdir)} (${fmt(f.wdir, 0)}°)`]);
   const mix = f.blh < 400 ? ['shallow', 'limited mixing'] : f.blh < 800
     ? ['moderate', 'partial mixing'] : ['deep', 'well mixed'];
@@ -216,7 +217,7 @@ function drawWeather(f) {
   $('#weather-body').innerHTML = rows.map(([k, v]) =>
     `<div class="hrow"><span>${k}</span><span class="hval">${v}</span></div>`).join('');
   const wn = $('#weather-note');
-  if (wn) wn.textContent = city.windCaveat || '';
+  if (wn) wn.textContent = [city.windCaveat, city.rainCaveat].filter(Boolean).join(' ');
 }
 
 // ── decomposition split (regional background vs local increment) ─────────────
