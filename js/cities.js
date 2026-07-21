@@ -20,6 +20,12 @@ export const CITIES = {
     seasonCode: true,            // show DJF/MAM/JJA/SON monsoon-season codes
     features: { fect: true, health: true, showcase: false, weatherFull: true },
     obsLabel: 'Akurana sensor',
+    // B2 method-transfer disclosure (5.2, 2026-07-21): form validated at Medellín +
+    // Kathmandu; Kandy parameters are physical priors (no local wind record).
+    windCaveat: 'Wind uses a thermal valley-circulation model validated against '
+      + 'weather stations in two analogue valleys (Medellín, Kathmandu). Kandy has '
+      + 'no wind record, so its parameters are physical priors — valley axis from '
+      + 'the terrain, strength scaled by relief. Indicative, not locally calibrated.',
     defaultEpisode: 'dec2022',
     downloadPrefix: 'kandy_pm25',
     captionName: 'Kandy PM2.5',

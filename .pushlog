@@ -12,3 +12,10 @@ LANDED 2 Mon Jul 20 10:40:15 SLST 2026
 To https://github.com/daminda1108/kandy-pm25-explorer.git
    ba37e1e..b1a9728  main -> main
 LANDED-live 1 Mon Jul 20 21:23:08 SLST 2026
+error: RPC failed; HTTP 408 curl 22 The requested URL returned error: 408
+send-pack: unexpected disconnect while reading sideband packet
+fatal: the remote end hung up unexpectedly
+Everything up-to-date
+To https://github.com/daminda1108/kandy-pm25-explorer.git
+   b1a9728..ffeae22  main -> main
+LANDED-fix 2 Mon Jul 20 23:36:42 SLST 2026
