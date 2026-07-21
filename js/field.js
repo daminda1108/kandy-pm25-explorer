@@ -4,7 +4,7 @@
 // the model's figure convention; 'universal' / 'adaptive' force either mode.
 // Grid size comes from the caller (meta.grid) — Kandy 16x16, Medellín 24x24.
 
-import { makeLUT, clamp } from './util.js?v=1784612562';
+import { makeLUT, clamp } from './util.js?v=1784614153';
 
 const LUT_YLORRD = makeLUT('ylorrd', 1.15);
 const LUT_TURBO = makeLUT('turbo', 0.85);
