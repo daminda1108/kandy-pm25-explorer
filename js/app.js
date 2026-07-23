@@ -1,17 +1,17 @@
 // app.js — PM2.5 Explorer orchestrator (city-aware: Kandy default, Medellín
 // proving ground). All per-city behaviour comes from cities.js.
 
-import { $, el, fmt, fmtCI, clamp } from './util.js?v=1784848165';
-import { activeCity } from './cities.js?v=1784848165';
-import { Store } from './store.js?v=1784848165';
-import { colourMode, paintField, paintColourbar } from './field.js?v=1784848165';
-import { WindLayer } from './wind.js?v=1784848165';
-import { Timeline } from './timeline.js?v=1784848165';
-import { Overlay } from './overlay.js?v=1784848165';
-import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1784848165';
-import { initShowcase } from './showcase.js?v=1784848165';
-import { MapView } from './mapview.js?v=1784848165';
-import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1784848165';
+import { $, el, fmt, fmtCI, clamp } from './util.js?v=1784850019';
+import { activeCity } from './cities.js?v=1784850019';
+import { Store } from './store.js?v=1784850019';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1784850019';
+import { WindLayer, windWords } from './wind.js?v=1784850019';
+import { Timeline } from './timeline.js?v=1784850019';
+import { Overlay } from './overlay.js?v=1784850019';
+import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1784850019';
+import { initShowcase } from './showcase.js?v=1784850019';
+import { MapView } from './mapview.js?v=1784850019';
+import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1784850019';
 
 const MAP = 840;                    // internal map canvas resolution (square)
 const CITY = activeCity();
@@ -129,6 +129,7 @@ async function seek(year, gi) {
   syncDatetime(f.tsUTC);
   const wf = await store.windField(year, state.gi);
   if (wf) wind.setField(wf);
+  drawWindLegend(f);
   updatePanels(f);
 }
 
@@ -137,6 +138,25 @@ async function setTier(tier) {
   for (const b of document.querySelectorAll('#tier-seg .seg-btn'))
     b.classList.toggle('active', b.dataset.tier === tier);
   if (state.year != null) await seek(state.year, state.gi);
+}
+
+// On-map wind legend: states the ACTUAL speed so the animation can't be misread as
+// strong flow. Without an absolute reference a 0.8 m/s hour and a 3 m/s hour look
+// alike (only the pace differs), which is what made the valley flow look overstated.
+function drawWindLegend(f) {
+  const elw = $('#wind-legend');
+  if (!elw) return;
+  const s = f.wspd;
+  if (!Number.isFinite(s)) { elw.style.display = 'none'; return; }
+  elw.style.display = '';
+  const calm = s < 0.5;
+  elw.classList.toggle('is-calm', calm);
+  const arrow = `<span class="wl-arrow" style="transform:rotate(${(f.wdir + 180) % 360}deg)">↑</span>`;
+  elw.innerHTML = `${arrow}<b>${s.toFixed(1)}</b> m/s`
+    + `<span class="wl-word">${windWords(s)}</span>`;
+  elw.title = calm
+    ? 'Near-calm: the animation is deliberately sparse and slow.'
+    : `Basin-mean wind ${s.toFixed(1)} m/s from ${Math.round(f.wdir)}°.`;
 }
 
 async function seekToTs(tsStr) {
