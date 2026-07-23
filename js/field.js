@@ -4,7 +4,7 @@
 // the model's figure convention; 'universal' / 'adaptive' force either mode.
 // Grid size comes from the caller (meta.grid) — Kandy 16x16, Medellín 24x24.
 
-import { makeLUT, clamp } from './util.js?v=1784614153';
+import { makeLUT, clamp } from './util.js?v=1784848165';
 
 const LUT_YLORRD = makeLUT('ylorrd', 1.15);
 const LUT_TURBO = makeLUT('turbo', 0.85);
@@ -35,14 +35,20 @@ export function colourMode(q50, pref = 'auto') {
   const hot = pct(0.98);
   const universal = pref === 'universal' || (pref === 'auto' && hot >= 35);
   if (universal) {
-    return { mode: 'turbo', lut: LUT_TURBO, lo: 8, hi: 90,
+    return { mode: 'turbo', lut: LUT_TURBO, lo: 8, hi: 90, gamma: 1,
              tag: pref === 'auto' ? 'universal · auto' : 'universal',
              ticks: [15, 25, 35, 50, 70, 90] };
   }
-  const lo = Math.floor(pct(0.03) / 5) * 5;
-  const hi = Math.max(Math.ceil(pct(0.995) / 5) * 5, lo + 10);
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => Math.round(lo + t * (hi - lo)));
-  return { mode: 'ylorrd', lut: LUT_YLORRD, lo, hi,
+  // Adaptive: frame the ACTUAL data (p2..p98) tightly instead of flooring to 5 and
+  // forcing a >=10 span — a low-contrast hour spanning <1 ug/m3 was using ~7% of the
+  // ramp and reading as false uniformity. A 4 ug/m3 minimum span keeps near-noise
+  // hours from being blown up (honesty), and a perceptual gamma <1 expands the
+  // lower-mid range where most pixels sit so real structure becomes visible. The
+  // colourbar ticks show the true (narrow) range, so magnitude stays honest.
+  let lo = pct(0.02), hi = pct(0.98);
+  if (hi - lo < 4) { const m = (hi + lo) / 2; lo = m - 2; hi = m + 2; }
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => Math.round((lo + t * (hi - lo)) * 10) / 10);
+  return { mode: 'ylorrd', lut: LUT_YLORRD, lo, hi, gamma: 0.72,
            tag: pref === 'auto' ? 'adaptive · auto' : 'adaptive', ticks };
 }
 
@@ -53,10 +59,12 @@ export function paintField(canvas, q50, cm, n) {
   const N = n || Math.round(Math.sqrt(q50.length));
   const up = upsample(q50, N, W, H);
   const img = new ImageData(W, H);
-  const { lut, lo, hi } = cm;
-  const inv = 255 / (hi - lo);
+  const { lut, lo, hi, gamma = 1 } = cm;
+  const span = hi - lo;
   for (let i = 0; i < up.length; i++) {
-    let t = clamp((up[i] - lo) * inv, 0, 255) | 0;
+    let f = clamp((up[i] - lo) / span, 0, 1);
+    if (gamma !== 1) f = Math.pow(f, gamma);      // perceptual mid-range expansion
+    const t = (f * 255) | 0;
     const j = t * 4, k = i * 4;
     img.data[k] = lut[j]; img.data[k + 1] = lut[j + 1];
     img.data[k + 2] = lut[j + 2];
@@ -70,8 +78,11 @@ export function paintColourbar(canvas, cm) {
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
   ctx.clearRect(0, 0, W, H);
+  const g = cm.gamma || 1;
   for (let x = 0; x < W; x++) {
-    const t = (x / (W - 1)) * 255 | 0, j = t * 4;
+    // the bar shows the SAME gamma the field uses, so a colour on the map maps back
+    // to the same value on the bar (positions are linear in value; colour follows gamma)
+    const t = (Math.pow(x / (W - 1), g) * 255) | 0, j = t * 4;
     ctx.fillStyle = `rgb(${cm.lut[j]},${cm.lut[j + 1]},${cm.lut[j + 2]})`;
     ctx.fillRect(x, 0, 1, H);
   }

@@ -6,7 +6,7 @@
 // zero-ground-data tier (Tv,Tv05,Tv95 — Medellín), the SAME P_local reconstructs
 // that tier with the alternative anchors (identical pattern by construction).
 
-import { getJSON, getGzip } from './util.js?v=1784614153';
+import { getJSON, getGzip } from './util.js?v=1784848165';
 
 export class Store {
   constructor(city) {
@@ -114,17 +114,25 @@ export class Store {
     // 2026-07-09): q = B + max(Tq-B,0)*P + min(Tq-B,0). The local pattern structures only
     // the accumulation above background; ventilation below background is spatially uniform,
     // so the core never renders cleaner than the rural edge (fixes the inversion).
+    // Ventilated-hour pattern FLOOR (additive_v3): q = B + max(max(inc,0),eps)*P
+    // + min(inc,0) - max(0, eps-max(inc,0)). eps (meta.eps_floor, 0 for the plain v2
+    // split) keeps a muted, mean-zero pattern on hours where the accumulation is tiny,
+    // so the field never renders perfectly flat (matches build_additive_field_v3 +
+    // the exporter's floor-aware reconstruction; T-lock preserved, no core<edge flip).
     const inc50 = T - B, inc05 = T05 - B, inc95 = T95 - B;
-    const a50 = Math.max(inc50, 0), u50 = Math.min(inc50, 0);
-    const a05 = Math.max(inc05, 0), u05 = Math.min(inc05, 0);
-    const a95 = Math.max(inc95, 0), u95 = Math.min(inc95, 0);
+    const eps = this.meta.eps_floor || 0;
+    const cf = (inc) => Math.max(Math.max(inc, 0), eps);            // coefficient on P
+    const k0 = (inc) => Math.min(inc, 0) - Math.max(0, eps - Math.max(inc, 0)); // constant
+    const c50 = cf(inc50), o50 = k0(inc50);
+    const c05 = cf(inc05), o05 = k0(inc05);
+    const c95 = cf(inc95), o95 = k0(inc95);
     let s50 = 0, s05 = 0, s95 = 0, pkI = 0;
     for (let i = 0; i < npx; i++) {
       const p = pmin + month.rows[off + i] / 65535 * span;
       P[i] = p;
-      q50[i] = Math.max(B + a50 * p + u50, 0);
-      q05[i] = Math.max(B + a05 * p + u05, 0);
-      q95[i] = Math.max(B + a95 * p + u95, 0);
+      q50[i] = Math.max(B + c50 * p + o50, 0);
+      q05[i] = Math.max(B + c05 * p + o05, 0);
+      q95[i] = Math.max(B + c95 * p + o95, 0);
       s50 += q50[i]; s05 += q05[i]; s95 += q95[i];
       if (q50[i] > q50[pkI]) pkI = i;
     }

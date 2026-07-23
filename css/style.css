@@ -300,3 +300,24 @@ footer { padding: 16px 26px 34px; border-top: 1px solid var(--line); margin-top:
   border-left: 3px solid rgba(240, 163, 90, .55); padding: 6px 10px;
   background: rgba(240, 163, 90, .05); border-radius: 0 8px 8px 0; display: none; }
 .tier-banner.show { display: block; }
+
+/* conditions chip — the one-line "why is this hour like this" state (U1) */
+.cond-chip { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  margin: 2px 2px 8px; padding: 7px 12px; border-radius: 999px; font-size: 12px;
+  background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .09);
+  color: var(--ink); width: fit-content; max-width: 100%; }
+.cond-chip b { font-weight: 600; letter-spacing: .1px; }
+.cond-why { color: var(--ink-dim); font-size: 11px; }
+.cond-dot { width: 8px; height: 8px; border-radius: 50%; background: #8ba3bd;
+  flex: 0 0 auto; align-self: center; box-shadow: 0 0 0 3px rgba(139, 163, 189, .15); }
+.cond-rain  .cond-dot { background: #4aa3ff; box-shadow: 0 0 0 3px rgba(74, 163, 255, .18); }
+.cond-rain  { border-color: rgba(74, 163, 255, .35); background: rgba(74, 163, 255, .07); }
+.cond-vent  .cond-dot { background: #38b76a; box-shadow: 0 0 0 3px rgba(56, 183, 106, .18); }
+.cond-vent  { border-color: rgba(56, 183, 106, .32); background: rgba(56, 183, 106, .06); }
+.cond-stag  .cond-dot { background: #e2574c; box-shadow: 0 0 0 3px rgba(226, 87, 76, .18); }
+.cond-stag  { border-color: rgba(226, 87, 76, .38); background: rgba(226, 87, 76, .07); }
+.cond-reg   .cond-dot { background: #c58af9; box-shadow: 0 0 0 3px rgba(197, 138, 249, .18); }
+.cond-reg   { border-color: rgba(197, 138, 249, .32); background: rgba(197, 138, 249, .06); }
+.cond-rush  .cond-dot { background: #f0a35a; box-shadow: 0 0 0 3px rgba(240, 163, 90, .18); }
+.cond-rush  { border-color: rgba(240, 163, 90, .35); background: rgba(240, 163, 90, .07); }
+@media (max-width: 640px) { .cond-why { display: none; } }
