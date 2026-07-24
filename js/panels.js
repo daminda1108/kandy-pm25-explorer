@@ -3,7 +3,7 @@
 // decomposition split, exposure/health, click-a-pixel point query.
 // Every numeric estimate carries its interval.
 
-import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1784882242';
+import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1784889440';
 
 let store, seekCb, curField, city;
 let LT = 5.5 * 3600;

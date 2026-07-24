@@ -6,7 +6,7 @@
   <title>How it works · Kandy PM2.5 Explorer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=1784882242" />
+  <link rel="stylesheet" href="css/style.css?v=1784889440" />
   <style>
     .doc { max-width: 820px; margin: 0 auto; padding: 10px 22px 60px; line-height: 1.65; }
     .doc h2 { font-size: 22px; margin: 34px 0 10px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
@@ -22,6 +22,20 @@
     .b-anc { background: rgba(77,208,255,.16); color: #8fd8f6; }
     .b-sce { background: rgba(240,163,90,.18); color: #f2c08a; }
     .back { display: inline-block; margin: 14px 0; }
+    .proving { display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: center;
+      justify-content: space-between; background: linear-gradient(180deg,
+      rgba(86,200,255,.06), transparent 60%), var(--panel);
+      border: 1px solid rgba(86,200,255,.28); border-radius: 14px;
+      padding: 16px 18px; margin: 16px 0; }
+    .proving > div { flex: 1 1 340px; min-width: 0; }
+    .proving b { color: var(--ink); font-size: 15px; }
+    .proving p { margin: 6px 0 0; font-size: 13.5px; }
+    .proving-link { flex: 0 0 auto; align-self: center; white-space: nowrap;
+      font-weight: 600; padding: 9px 18px; border-radius: 20px;
+      border: 1px solid rgba(86,200,255,.45); background: rgba(86,200,255,.10);
+      color: var(--accent); }
+    .proving-link:hover { background: rgba(86,200,255,.18); text-decoration: none; }
+    @media (max-width: 560px) { .proving-link { width: 100%; text-align: center; } }
   </style>
 </head>
 <body>
@@ -32,10 +46,12 @@
 
   <div class="doc">
     <p><b>The Kandy PM<sub>2.5</sub> Explorer reconstructs a 1 km, hourly fine-particulate
-    field over the Kandy valley for 2019–2023.</b> Kandy's monitoring record is sparse, so
+    field over the Kandy valley for 2019–2026.</b> Kandy's monitoring record is sparse, so
     the model combines satellite products, reanalysis meteorology, terrain physics and
-    ground measurements from comparable cities. This page describes what each part of the
-    map is based on and how much weight it can carry.</p>
+    ground measurements from comparable cities — a transfer-validation approach explained
+    below. The satellite-anchored years (2019–2023) carry the headline; 2024–2026 are a
+    labelled extension. This page describes what each part of the map is based on and how
+    much weight it can carry.</p>
 
     <h2>The model in one equation</h2>
     <div class="eq">PM(x, y, t) = B(t) + [ T(t) − B(t) ] · P<sub>local</sub>(x, y, t)</div>
@@ -91,12 +107,45 @@
       </tr>
     </table>
 
-    <h2>Why the explorer stops at 2023</h2>
-    <p>The annual level is anchored to a satellite product whose current release ends in
-    2023. We tested extending the level with a chemistry-model scaling and found its
-    year-to-year signal unreliable for this purpose: it misses the emission anomalies of
-    2021 (pandemic) and 2022 (fuel crisis). The explorer therefore ends at the last
-    anchored year. When the satellite product is extended, the explorer can be too.</p>
+    <h2>How the method is validated: proving-ground cities</h2>
+    <p>Kandy has no dense monitoring network, so the fine-scale field shown here cannot be
+    checked against local stations directly. Instead we run the <em>same</em> method, blind,
+    on cities that <em>do</em> have dense networks: we build the map as if the city had
+    almost no ground data, then score it against the monitors that were deliberately
+    withheld from the model. Reconstructing a monitored city the model has never seen is
+    evidence that it is doing something real when applied to Kandy — this is the
+    transfer-validation logic that underpins the whole approach.</p>
+    <p>The flagship proving ground is <b>Medellín</b>, Colombia — a tropical Andean valley
+    with a complete PM<sub>2.5</sub> record and a Kandy-analogue regime. Run blind against
+    its withheld network, the identical engine reproduces the seasonal cycle (r ≈ 0.99), the
+    daily cycle (r ≈ 0.89) and the station-by-station spatial ranking (ρ ≈ 0.78, the best in
+    the panel), with the level landing within about 6%. The same machinery has been tested
+    across a nine-city panel spanning five countries and three continents. Improvements are
+    proven on these monitored cities first, and only the ones that hold up across several of
+    them are ported to Kandy — the wind recalibration and the post-2023 level extension used
+    in this explorer were both validated on Medellín before being brought here.</p>
+    <div class="proving">
+      <div>
+        <b>Medellín — the proving ground</b>
+        <p>See the identical engine run against a city that <em>has</em> monitors: build the
+        map from little or no ground data, then reveal the withheld network and watch it be
+        scored, including a live self-checking day-ahead forecast.</p>
+      </div>
+      <a class="proving-link" href="https://daminda1108.github.io/medellin-pm25/"
+         target="_blank" rel="noopener">Open the Medellín proving ground →</a>
+    </div>
+
+    <h2>Extending past the satellite anchor (2024–2026)</h2>
+    <p>The annual level for 2019–2023 is anchored to a satellite product whose current release
+    ends in 2023. A simple chemistry-model scaling proved unreliable for carrying it forward —
+    it misses the emission anomalies of 2021 (pandemic) and 2022 (fuel crisis). So for 2024
+    onward we replaced the anchor with a model trained on meteorology and a global chemistry
+    forecast: the same driver-anchored approach we validated on Medellín, where — trained only
+    on data through 2023 — it reproduced the 2024 annual level to within a few percent of
+    monitors it had never seen. The 2024–2026 years are shown as a separate, clearly labelled
+    <em>extension</em> tier: the level and timing are modelled, the street-scale pattern is the
+    2019–2023 climatology, and the level carries a wider (~±15%) uncertainty. The locked
+    2019–2023 headline is untouched by the extension.</p>
 
     <h2>Uncertainty</h2>
     <p>Every field carries a calibrated 90% interval. The map has an upper-bound toggle,
@@ -148,7 +197,7 @@
   </div>
 
   <script type="module">
-    import { getJSON } from './js/util.js?v=1784882242';
+    import { getJSON } from './js/util.js?v=1784889440';
     const meta = await getJSON('data/meta.json');
     const ul = document.getElementById('doc-credits');
     for (const [what, who] of meta.credits) {
