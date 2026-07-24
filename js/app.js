@@ -1,17 +1,17 @@
 // app.js — PM2.5 Explorer orchestrator (city-aware: Kandy default, Medellín
 // proving ground). All per-city behaviour comes from cities.js.
 
-import { $, el, fmt, fmtCI, clamp } from './util.js?v=1784866952';
-import { activeCity } from './cities.js?v=1784866952';
-import { Store } from './store.js?v=1784866952';
-import { colourMode, paintField, paintColourbar } from './field.js?v=1784866952';
-import { WindLayer, windWords } from './wind.js?v=1784866952';
-import { Timeline } from './timeline.js?v=1784866952';
-import { Overlay } from './overlay.js?v=1784866952';
-import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1784866952';
-import { initShowcase } from './showcase.js?v=1784866952';
-import { MapView } from './mapview.js?v=1784866952';
-import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1784866952';
+import { $, el, fmt, fmtCI, clamp } from './util.js?v=1784869062';
+import { activeCity } from './cities.js?v=1784869062';
+import { Store } from './store.js?v=1784869062';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1784869062';
+import { WindLayer, windWords } from './wind.js?v=1784869062';
+import { Timeline } from './timeline.js?v=1784869062';
+import { Overlay } from './overlay.js?v=1784869062';
+import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1784869062';
+import { initShowcase } from './showcase.js?v=1784869062';
+import { MapView } from './mapview.js?v=1784869062';
+import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1784869062';
 
 const MAP = 840;                    // internal map canvas resolution (square)
 const CITY = activeCity();
@@ -165,7 +165,7 @@ async function setTier(tier) {
 // One DOM, two layouts. Panels declare where they belong with data-surface, so
 // switching is a class flip — canvases keep their state and nothing re-fetches.
 const SURFACE_HINT = { explore: 'the map, hour by hour',
-                       insights: 'patterns, exposure and health across the record' };
+                       insights: 'patterns and analysis across the record' };
 function setSurface(name, { push = true } = {}) {
   const s = name === 'insights' ? 'insights' : 'explore';
   state.surface = s;
