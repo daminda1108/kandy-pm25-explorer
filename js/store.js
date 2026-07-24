@@ -6,7 +6,7 @@
 // zero-ground-data tier (Tv,Tv05,Tv95 — Medellín), the SAME P_local reconstructs
 // that tier with the alternative anchors (identical pattern by construction).
 
-import { getJSON, getGzip } from './util.js?v=1784869062';
+import { getJSON, getGzip } from './util.js?v=1784870464';
 
 export class Store {
   constructor(city) {

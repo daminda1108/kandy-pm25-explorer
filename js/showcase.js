@@ -7,8 +7,8 @@
 //      between assimilation tiers and moves a live point on the data-value curve.
 // All numbers come from the exported payloads (stations/showcase/forecast/datavalue).
 
-import { $, el, fmt, fitCanvas, ylorrd, clamp } from './util.js?v=1784869062';
-import { colourMode, paintField, paintColourbar } from './field.js?v=1784869062';
+import { $, el, fmt, fitCanvas, ylorrd, clamp } from './util.js?v=1784870464';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1784870464';
 
 export async function initShowcase({ store, city, mapview, stationCanvas, getState, exitToHour }) {
   const [stations, showcase, forecast, dv] = await Promise.all([

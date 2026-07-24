@@ -40,8 +40,32 @@ export class Overlay {
       for (const f of L.rivers) if (f.t === 'ln') this._line(f.c);
     }
     if (this.show.roads && L.roads) {
-      ctx.strokeStyle = 'rgba(20,25,35,0.35)'; ctx.lineWidth = 0.6 * k;
-      for (const f of L.roads) if (f.t === 'ln') this._line(f.c);
+      // Road hierarchy (U2 basemap): draw minor roads first, then majors on top,
+      // each wider + lighter by rank (r: 3 trunk/primary, 2 secondary, 1 tertiary).
+      // Majors also get a subtle dark casing so they read as roads, not scribbles —
+      // this is the single biggest "professional map" cue. Falls back to the old
+      // flat style for payloads exported before the rank was added.
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      const STYLE = { 1: [0.5, 'rgba(150,168,190,0.28)'],
+                      2: [1.0, 'rgba(176,192,214,0.42)'],
+                      3: [1.6, 'rgba(206,220,240,0.60)'] };
+      const hasRank = L.roads.some((f) => f.r);
+      if (hasRank) {
+        // casing pass for majors
+        ctx.strokeStyle = 'rgba(6,10,16,0.5)';
+        for (const f of L.roads) {
+          if (f.t !== 'ln' || (f.r || 1) < 3) continue;
+          ctx.lineWidth = (STYLE[3][0] + 1.1) * k; this._line(f.c);
+        }
+        for (const rank of [1, 2, 3]) {
+          const [w, col] = STYLE[rank];
+          ctx.strokeStyle = col; ctx.lineWidth = w * k;
+          for (const f of L.roads) if (f.t === 'ln' && (f.r || 1) === rank) this._line(f.c);
+        }
+      } else {
+        ctx.strokeStyle = 'rgba(150,168,190,0.34)'; ctx.lineWidth = 0.7 * k;
+        for (const f of L.roads) if (f.t === 'ln') this._line(f.c);
+      }
     }
     if (this.show.emission && this.emission) {
       for (const c of this.emission.contours) {
