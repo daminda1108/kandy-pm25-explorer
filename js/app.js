@@ -1,17 +1,17 @@
 // app.js — PM2.5 Explorer orchestrator (city-aware: Kandy default, Medellín
 // proving ground). All per-city behaviour comes from cities.js.
 
-import { $, el, fmt, fmtCI, clamp } from './util.js?v=1784870464';
-import { activeCity } from './cities.js?v=1784870464';
-import { Store } from './store.js?v=1784870464';
-import { colourMode, paintField, paintColourbar } from './field.js?v=1784870464';
-import { WindLayer, windWords } from './wind.js?v=1784870464';
-import { Timeline } from './timeline.js?v=1784870464';
-import { Overlay } from './overlay.js?v=1784870464';
-import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1784870464';
-import { initShowcase } from './showcase.js?v=1784870464';
-import { MapView } from './mapview.js?v=1784870464';
-import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1784870464';
+import { $, el, fmt, fmtCI, clamp } from './util.js?v=1784882242';
+import { activeCity } from './cities.js?v=1784882242';
+import { Store } from './store.js?v=1784882242';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1784882242';
+import { WindLayer, windWords } from './wind.js?v=1784882242';
+import { Timeline } from './timeline.js?v=1784882242';
+import { Overlay } from './overlay.js?v=1784882242';
+import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1784882242';
+import { initShowcase } from './showcase.js?v=1784882242';
+import { MapView } from './mapview.js?v=1784882242';
+import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1784882242';
 
 const MAP = 840;                    // internal map canvas resolution (square)
 const CITY = activeCity();
@@ -113,12 +113,16 @@ async function boot() {
   const tierSeg = $('#tier-seg');
   if (tierSeg && store.hasBlindTier(s0)) tierSeg.style.display = '';
 
-  // initial view: a deep link if present, else a documented episode, else the
-  // city's default timestamp
+  // initial view: a deep link if present; else the most recent hour ("now") when
+  // the city opts in; else a documented episode / the city's default timestamp
   if (!(await restoreFromHash())) {
-    const ep = store.meta.episodes.find((e) => e.id === CITY.defaultEpisode)
-            || store.meta.episodes[0];
-    await seekToTs(ep ? ep.ts : CITY.defaultTs);
+    if (CITY.openAtNow) {
+      await seekToNow();
+    } else {
+      const ep = store.meta.episodes.find((e) => e.id === CITY.defaultEpisode)
+              || store.meta.episodes[0];
+      await seekToTs(ep ? ep.ts : CITY.defaultTs);
+    }
   }
   window.addEventListener('hashchange', () => { if (!writingHash) restoreFromHash(); });
   loadStep('field', true);
@@ -271,6 +275,23 @@ function drawWindLegend(f) {
   elw.title = calm
     ? 'Near-calm: the animation is deliberately sparse and slow.'
     : `Basin-mean wind ${s.toFixed(1)} m/s from ${Math.round(f.wdir)}°.`;
+}
+
+// Open on the most recent available hour (the closest the archive gets to "now").
+// The archive is historical/reconstruction, so "now" lands on its latest hour and
+// stays current automatically as new years are appended.
+async function seekToNow() {
+  const now = Date.now() / 1000;
+  let best = null;
+  for (const y of store.meta.years) {
+    const s = await store.getScalars(y);
+    for (let i = 0; i < s.hours_utc.length; i++) {
+      const d = Math.abs(s.hours_utc[i] - now);
+      if (!best || d < best.d) best = { d, y, i };
+    }
+  }
+  if (best) await seek(best.y, best.i);
+  else await seekToTs(CITY.defaultTs);
 }
 
 async function seekToTs(tsStr) {

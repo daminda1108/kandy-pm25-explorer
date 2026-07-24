@@ -27,6 +27,9 @@ export const CITIES = {
       + 'no wind record, so its parameters are physical priors — valley axis from '
       + 'the terrain, strength scaled by relief. Indicative, not locally calibrated.',
     defaultEpisode: 'dec2022',
+    // open on the most recent available hour (nearest to "now") rather than a fixed
+    // historical episode — the app should greet the visitor with current conditions
+    openAtNow: true,
     downloadPrefix: 'kandy_pm25',
     captionName: 'Kandy PM2.5',
     regime: null,
