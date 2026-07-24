@@ -242,11 +242,22 @@ footer { padding: 16px 26px 34px; border-top: 1px solid var(--line); margin-top:
   align-items: center; justify-content: center; z-index: 100; color: var(--ink-dim);
   transition: opacity .4s; }
 #loading.done { opacity: 0; pointer-events: none; }
-.load-inner { display: flex; gap: 14px; align-items: center; font-size: 15px; }
+.load-inner { display: flex; flex-direction: column; gap: var(--sp-4);
+  align-items: center; font-size: var(--fs-md); text-align: center; }
 .spinner { width: 26px; height: 26px; border: 3px solid var(--line);
   border-top-color: var(--accent); border-radius: 50%;
   animation: spin 0.9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+/* progressive load steps — tells the viewer WHAT is arriving rather than
+   showing an unexplained spinner over a large payload (U3) */
+.load-steps { display: flex; flex-direction: column; gap: var(--sp-1);
+  font-size: var(--fs-sm); color: var(--ink-faint); min-width: 210px; }
+.load-step { display: flex; align-items: center; gap: var(--sp-2);
+  transition: color var(--dur) var(--ease); }
+.load-step::before { content: '○'; font-size: 9px; opacity: .6; }
+.load-step.on { color: var(--ink-dim); }
+.load-step.done { color: var(--good); }
+.load-step.done::before { content: '●'; opacity: 1; }
 .err { color: #ff8a8a; }
 
 /* ── responsive ──────────────────────────────────────────────────────────────
@@ -375,3 +386,30 @@ footer { padding: 16px 26px 34px; border-top: 1px solid var(--line); margin-top:
 .jump-btn:disabled { opacity: .5; cursor: progress; }
 .jump-btn.busy { border-style: solid; }
 @media (max-width: 860px) { .dt-jumps { order: 9; width: 100%; margin: var(--sp-1) 0 0; } }
+
+/* ── surfaces: Explore (map-led) | Insights (full-width analytics) — U3 ──────
+   Both surfaces share one DOM; panels declare where they belong via
+   data-surface. Keeping them mounted (rather than rebuilding) means canvases
+   keep their state and switching is instant. */
+.surface-nav { display: flex; align-items: center; gap: var(--sp-1);
+  padding: 0 var(--sp-6); margin-top: calc(-1 * var(--sp-1)); }
+.surf-btn { background: transparent; border: none; cursor: pointer;
+  color: var(--ink-faint); font-family: inherit; font-size: var(--fs-md);
+  font-weight: 600; padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  border-bottom: 2px solid transparent; transition: color var(--dur) var(--ease),
+  border-color var(--dur) var(--ease); }
+.surf-btn:hover { color: var(--ink-dim); }
+.surf-btn.active { color: var(--ink); border-bottom-color: var(--accent); }
+.surf-hint { margin-left: var(--sp-3); font-size: var(--fs-sm); color: var(--ink-faint); }
+
+/* Insights: the map column steps aside and the analytics get real estate. */
+main.view-insights { grid-template-columns: 1fr; }
+main.view-insights .map-col { display: none; }
+main.view-insights .rail { display: grid; gap: var(--sp-4);
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); align-items: start; }
+main.view-insights .panel[data-surface="explore"] { display: none; }
+.view-explore .panel[data-surface="insights"] { display: none; }
+@media (max-width: 640px) {
+  .surface-nav { padding: 0 var(--sp-4); }
+  .surf-hint { display: none; }
+}

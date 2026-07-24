@@ -1,24 +1,25 @@
 // app.js — PM2.5 Explorer orchestrator (city-aware: Kandy default, Medellín
 // proving ground). All per-city behaviour comes from cities.js.
 
-import { $, el, fmt, fmtCI, clamp } from './util.js?v=1784851046';
-import { activeCity } from './cities.js?v=1784851046';
-import { Store } from './store.js?v=1784851046';
-import { colourMode, paintField, paintColourbar } from './field.js?v=1784851046';
-import { WindLayer, windWords } from './wind.js?v=1784851046';
-import { Timeline } from './timeline.js?v=1784851046';
-import { Overlay } from './overlay.js?v=1784851046';
-import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1784851046';
-import { initShowcase } from './showcase.js?v=1784851046';
-import { MapView } from './mapview.js?v=1784851046';
-import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1784851046';
+import { $, el, fmt, fmtCI, clamp } from './util.js?v=1784866952';
+import { activeCity } from './cities.js?v=1784866952';
+import { Store } from './store.js?v=1784866952';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1784866952';
+import { WindLayer, windWords } from './wind.js?v=1784866952';
+import { Timeline } from './timeline.js?v=1784866952';
+import { Overlay } from './overlay.js?v=1784866952';
+import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1784866952';
+import { initShowcase } from './showcase.js?v=1784866952';
+import { MapView } from './mapview.js?v=1784866952';
+import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1784866952';
 
 const MAP = 840;                    // internal map canvas resolution (square)
 const CITY = activeCity();
 const LT_OFFSET = CITY.tzOffsetH * 3600;
 
 const state = { year: null, gi: 0, playing: false, showUQ: false,
-                scaleMode: 'auto', cur: null, pin: null, tier: 'model' };
+                scaleMode: 'auto', cur: null, pin: null, tier: 'model',
+                surface: 'explore' };
 
 const store = new Store(CITY);
 let timeline, wind, overlay, hillCtx, mapview, showcase;
@@ -43,8 +44,18 @@ function daypart(h) {
        : h < 20 ? 'evening rush' : 'night';
 }
 
+// progressive loading feedback — a 34 MB payload deserves more than a spinner
+function loadStep(name, done = false) {
+  const e = document.querySelector(`.load-step[data-step="${name}"]`);
+  if (!e) return;
+  e.classList.add(done ? 'done' : 'on');
+  if (done) e.classList.remove('on');
+}
+
 async function boot() {
+  loadStep('terrain');
   await store.init();
+  loadStep('terrain', true); loadStep('wind', true);   // both land in store.init()
   const bbox = store.meta.grid.bbox;
 
   // map stack — canvases live inside the transformed pan wrapper
@@ -70,13 +81,17 @@ async function boot() {
 
   wireControls();
   wireDatetime();
+  wireSurfaces();
   initPanels(store, (y, gi) => seek(y, gi), CITY);
 
   // preload all years' scalars for the strip (small, gzip over the wire)
+  loadStep('years');
   for (const y of store.meta.years) {
     const s = await store.getScalars(y);
     timeline.addYear(y, s);
   }
+  loadStep('years', true);
+  loadStep('field');
 
   $('#integrity-text').textContent = store.meta.integrity;
   buildEpisodes();
@@ -106,6 +121,7 @@ async function boot() {
     await seekToTs(ep ? ep.ts : CITY.defaultTs);
   }
   window.addEventListener('hashchange', () => { if (!writingHash) restoreFromHash(); });
+  loadStep('field', true);
   wind.start();
   const load = $('#loading');
   load.classList.add('done');
@@ -145,6 +161,49 @@ async function setTier(tier) {
   if (state.year != null) await seek(state.year, state.gi);
 }
 
+// ── surfaces (Explore | Insights) ────────────────────────────────────────────
+// One DOM, two layouts. Panels declare where they belong with data-surface, so
+// switching is a class flip — canvases keep their state and nothing re-fetches.
+const SURFACE_HINT = { explore: 'the map, hour by hour',
+                       insights: 'patterns, exposure and health across the record' };
+function setSurface(name, { push = true } = {}) {
+  const s = name === 'insights' ? 'insights' : 'explore';
+  state.surface = s;
+  const m = $('main');
+  m.classList.toggle('view-insights', s === 'insights');
+  m.classList.toggle('view-explore', s === 'explore');
+  for (const b of document.querySelectorAll('.surf-btn')) {
+    const on = b.dataset.surface === s;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  }
+  const hint = $('#surf-hint');
+  if (hint) hint.textContent = SURFACE_HINT[s];
+  // charts refit via the rail ResizeObserver (wireSurfaces) — a rAF here fires
+  // before the grid has re-laid out, so the canvases would keep the old width
+  if (push && state.cur) writeHash(state.cur);
+}
+
+function wireSurfaces() {
+  for (const b of document.querySelectorAll('.surf-btn'))
+    b.addEventListener('click', () => setSurface(b.dataset.surface));
+  setSurface('explore', { push: false });
+  // Refit charts whenever the rail's width actually changes — covers the surface
+  // switch (grid reflow) as well as window resizes. An observer is used rather
+  // than a rAF after the class flip because layout has not settled at that point.
+  const rail = $('.rail');
+  if (rail && 'ResizeObserver' in window) {
+    let last = 0, t = null;
+    new ResizeObserver((entries) => {
+      const w = Math.round(entries[0].contentRect.width);
+      if (w === last || !w) return;
+      last = w;
+      clearTimeout(t);
+      t = setTimeout(() => { if (state.cur) updatePanels(state.cur); }, 60);
+    }).observe(rail);
+  }
+}
+
 // ── deep links ───────────────────────────────────────────────────────────────
 // Any view is shareable/bookmarkable: #t=<unix>&uq=1&s=universal&tier=vand.
 // The timestamp is the source of truth (hour indices shift if a payload is
@@ -157,6 +216,7 @@ function writeHash(f) {
   if (state.showUQ) p.set('uq', '1');
   if (state.scaleMode !== 'auto') p.set('s', state.scaleMode);
   if (state.tier !== 'model') p.set('tier', state.tier);
+  if (state.surface === 'insights') p.set('v', 'insights');
   const h = `#${p.toString()}`;
   if (h === location.hash) return;
   writingHash = true;
@@ -179,6 +239,7 @@ async function restoreFromHash() {
   }
   const tier = p.get('tier');
   if (tier === 'vand') state.tier = 'vand';
+  if (p.get('v') === 'insights') setSurface('insights', { push: false });
   // locate the nearest shipped hour to the requested timestamp
   let best = null;
   for (const y of store.meta.years) {

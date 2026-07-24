@@ -7,13 +7,19 @@
   <meta name="description" content="Hourly 1 km PM2.5 fields for Kandy, Sri Lanka (2019–2026): heatmap, terrain wind, uncertainty, background/local split, weather conditions and documented haze events." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=1784851046" />
+  <link rel="stylesheet" href="css/style.css?v=1784866952" />
 </head>
 <body>
   <div id="loading">
     <div class="load-inner">
       <div class="spinner"></div>
       <span>Loading Kandy PM<sub>2.5</sub> fields…</span>
+      <div class="load-steps" id="load-steps">
+        <span class="load-step" data-step="terrain">terrain &amp; map layers</span>
+        <span class="load-step" data-step="wind">terrain-wind library</span>
+        <span class="load-step" data-step="years">hourly record</span>
+        <span class="load-step" data-step="field">reconstructing the field</span>
+      </div>
     </div>
   </div>
 
@@ -31,6 +37,12 @@
       <a href="method.html" class="method-link">How it works</a>
     </div>
   </header>
+
+  <nav class="surface-nav" role="tablist" aria-label="Views">
+    <button class="surf-btn active" data-surface="explore" role="tab" aria-selected="true">Explore</button>
+    <button class="surf-btn" data-surface="insights" role="tab" aria-selected="false">Insights</button>
+    <span class="surf-hint" id="surf-hint">the map, hour by hour</span>
+  </nav>
 
   <div class="datetime-bar">
     <span class="dt-label">Date &amp; time</span>
@@ -108,28 +120,28 @@
     </section>
 
     <aside class="rail">
-      <div class="panel">
+      <div class="panel" data-surface="both">
         <h3>Temporal variation <span class="hint">selected day</span></h3>
         <canvas id="diurnal-canvas"></canvas>
         <p id="diurnal-note" class="note"></p>
         <h4 class="sub-h">Months of <span id="season-year"></span></h4>
         <canvas id="season-canvas"></canvas>
       </div>
-      <div class="panel">
+      <div class="panel" data-surface="explore">
         <h3>Weather <span class="hint">ERA5, this hour</span></h3>
         <div id="weather-body" class="kv"></div>
         <p id="weather-note" class="note"></p>
       </div>
-      <div class="panel">
+      <div class="panel" data-surface="both">
         <h3>Background vs local</h3>
         <canvas id="decomp-canvas"></canvas>
         <p id="decomp-note" class="note"></p>
       </div>
-      <div class="panel" id="point-panel">
+      <div class="panel" id="point-panel" data-surface="explore">
         <h3>Point query <span class="hint">click the map</span></h3>
         <div id="point-body" class="kv"></div>
       </div>
-      <div class="panel">
+      <div class="panel" data-surface="both">
         <h3>Exposure &amp; health · <span id="health-year"></span></h3>
         <div id="health-body" class="kv"></div>
       </div>
@@ -145,6 +157,6 @@
     <div id="credits" class="credits"></div>
   </footer>
 
-  <script type="module" src="js/app.js?v=1784851046"></script>
+  <script type="module" src="js/app.js?v=1784866952"></script>
 </body>
 </html>
