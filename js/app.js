@@ -1,17 +1,17 @@
 // app.js — PM2.5 Explorer orchestrator (city-aware: Kandy default, Medellín
 // proving ground). All per-city behaviour comes from cities.js.
 
-import { $, el, fmt, fmtCI, clamp } from './util.js?v=1784850019';
-import { activeCity } from './cities.js?v=1784850019';
-import { Store } from './store.js?v=1784850019';
-import { colourMode, paintField, paintColourbar } from './field.js?v=1784850019';
-import { WindLayer, windWords } from './wind.js?v=1784850019';
-import { Timeline } from './timeline.js?v=1784850019';
-import { Overlay } from './overlay.js?v=1784850019';
-import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1784850019';
-import { initShowcase } from './showcase.js?v=1784850019';
-import { MapView } from './mapview.js?v=1784850019';
-import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1784850019';
+import { $, el, fmt, fmtCI, clamp } from './util.js?v=1784851046';
+import { activeCity } from './cities.js?v=1784851046';
+import { Store } from './store.js?v=1784851046';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1784851046';
+import { WindLayer, windWords } from './wind.js?v=1784851046';
+import { Timeline } from './timeline.js?v=1784851046';
+import { Overlay } from './overlay.js?v=1784851046';
+import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1784851046';
+import { initShowcase } from './showcase.js?v=1784851046';
+import { MapView } from './mapview.js?v=1784851046';
+import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1784851046';
 
 const MAP = 840;                    // internal map canvas resolution (square)
 const CITY = activeCity();
@@ -98,10 +98,14 @@ async function boot() {
   const tierSeg = $('#tier-seg');
   if (tierSeg && store.hasBlindTier(s0)) tierSeg.style.display = '';
 
-  // initial view: a documented episode, else the city's default timestamp
-  const ep = store.meta.episodes.find((e) => e.id === CITY.defaultEpisode)
-          || store.meta.episodes[0];
-  await seekToTs(ep ? ep.ts : CITY.defaultTs);
+  // initial view: a deep link if present, else a documented episode, else the
+  // city's default timestamp
+  if (!(await restoreFromHash())) {
+    const ep = store.meta.episodes.find((e) => e.id === CITY.defaultEpisode)
+            || store.meta.episodes[0];
+    await seekToTs(ep ? ep.ts : CITY.defaultTs);
+  }
+  window.addEventListener('hashchange', () => { if (!writingHash) restoreFromHash(); });
   wind.start();
   const load = $('#loading');
   load.classList.add('done');
@@ -131,6 +135,7 @@ async function seek(year, gi) {
   if (wf) wind.setField(wf);
   drawWindLegend(f);
   updatePanels(f);
+  writeHash(f);
 }
 
 async function setTier(tier) {
@@ -138,6 +143,54 @@ async function setTier(tier) {
   for (const b of document.querySelectorAll('#tier-seg .seg-btn'))
     b.classList.toggle('active', b.dataset.tier === tier);
   if (state.year != null) await seek(state.year, state.gi);
+}
+
+// ── deep links ───────────────────────────────────────────────────────────────
+// Any view is shareable/bookmarkable: #t=<unix>&uq=1&s=universal&tier=vand.
+// The timestamp is the source of truth (hour indices shift if a payload is
+// rebuilt), so a saved link keeps working across re-exports.
+let writingHash = false;
+function writeHash(f) {
+  if (!f) return;
+  const p = new URLSearchParams();
+  p.set('t', String(f.tsUTC));
+  if (state.showUQ) p.set('uq', '1');
+  if (state.scaleMode !== 'auto') p.set('s', state.scaleMode);
+  if (state.tier !== 'model') p.set('tier', state.tier);
+  const h = `#${p.toString()}`;
+  if (h === location.hash) return;
+  writingHash = true;
+  history.replaceState(null, '', h);
+  setTimeout(() => { writingHash = false; }, 0);
+}
+
+async function restoreFromHash() {
+  const raw = location.hash.replace(/^#/, '');
+  if (!raw) return false;
+  const p = new URLSearchParams(raw);
+  const t = Number(p.get('t'));
+  if (!Number.isFinite(t)) return false;
+  if (p.get('uq') === '1') { state.showUQ = true; const c = $('#uq'); if (c) c.checked = true; }
+  const sm = p.get('s');
+  if (sm && ['auto', 'universal', 'adaptive'].includes(sm)) {
+    state.scaleMode = sm;
+    for (const b of document.querySelectorAll('.seg-btn[data-mode]'))
+      b.classList.toggle('active', b.dataset.mode === sm);
+  }
+  const tier = p.get('tier');
+  if (tier === 'vand') state.tier = 'vand';
+  // locate the nearest shipped hour to the requested timestamp
+  let best = null;
+  for (const y of store.meta.years) {
+    const s = await store.getScalars(y);
+    for (let i = 0; i < s.hours_utc.length; i++) {
+      const d = Math.abs(s.hours_utc[i] - t);
+      if (!best || d < best.d) best = { d, y, i };
+    }
+  }
+  if (!best || best.d > 86400) return false;      // link points outside the archive
+  await seek(best.y, best.i);
+  return true;
 }
 
 // On-map wind legend: states the ACTUAL speed so the animation can't be misread as
@@ -248,6 +301,56 @@ function wireDatetime() {
   };
   for (const s of [ySel, mSel, dSel, hSel]) s.addEventListener('change', go);
   rebuildDays();
+  wireJumps();
+}
+
+// Quick-jump: finding a *notable* hour previously meant guessing dates in four
+// dropdowns. These scan the already-loaded scalars, so they cost nothing extra.
+async function wireJumps() {
+  const wrap = $('#dt-jumps');
+  if (!wrap) return;
+  const jump = async (pick, label) => {
+    let best = null;
+    for (const y of store.meta.years) {
+      const s = await store.getScalars(y);
+      for (let i = 0; i < s.hours_utc.length; i++) {
+        const cand = pick(s, i, y);
+        if (cand == null) continue;
+        if (!best || cand > best.score) best = { score: cand, y, i };
+      }
+    }
+    if (best) await seek(best.y, best.i);
+    return label;
+  };
+  const inYear = (fn) => async () => {
+    const y = state.year ?? store.meta.years[0];
+    const s = await store.getScalars(y);
+    let best = null;
+    for (let i = 0; i < s.hours_utc.length; i++) {
+      const c = fn(s, i);
+      if (c == null) continue;
+      if (!best || c > best.score) best = { score: c, i };
+    }
+    if (best) await seek(y, best.i);
+  };
+  const btns = [
+    ['Worst hour', 'highest reconstructed basin mean in the selected year',
+     inYear((s, i) => s.basin[i])],
+    ['Cleanest hour', 'lowest reconstructed basin mean in the selected year',
+     inYear((s, i) => -Math.max(s.basin[i], 0))],
+    ['Wettest hour', 'heaviest rain in the selected year (satellite estimate)',
+     inYear((s, i) => (s.rain && s.rain[i] != null ? s.rain[i] : null))],
+    ['Most stagnant', 'calmest air under the shallowest boundary layer',
+     inYear((s, i) => (s.blh[i] > 0 ? -(s.blh[i] * Math.max(s.wspd[i], .05)) : null))],
+  ];
+  for (const [label, title, fn] of btns) {
+    const b = el('button', { class: 'jump-btn', title }, label);
+    b.addEventListener('click', async () => {
+      b.disabled = true; b.classList.add('busy');
+      try { await fn(); } finally { b.disabled = false; b.classList.remove('busy'); }
+    });
+    wrap.append(b);
+  }
 }
 
 let syncing = false;
@@ -304,6 +407,22 @@ function wireControls() {
   $('#dl-csv').addEventListener('click', () => state.cur && downloadFieldCSV(store, state.cur, CITY));
   $('#dl-point').addEventListener('click', () => {
     if (state.cur && state.pin) downloadPointCSV(store, state.cur, state.pin.lat, state.pin.lon, CITY);
+  });
+  const cl = $('#copy-link');
+  if (cl) cl.addEventListener('click', async () => {
+    const url = location.href;
+    const done = (ok) => {
+      cl.textContent = ok ? 'link copied' : 'press Ctrl+C';
+      setTimeout(() => { cl.textContent = 'copy link'; }, 1800);
+    };
+    try { await navigator.clipboard.writeText(url); done(true); }
+    catch { // clipboard blocked (insecure origin / permissions) — select instead
+      const ta = el('input', { value: url });
+      Object.assign(ta.style, { position: 'fixed', opacity: '0' });
+      document.body.append(ta); ta.select();
+      try { document.execCommand('copy'); done(true); } catch { done(false); }
+      ta.remove();
+    }
   });
 }
 

@@ -7,7 +7,7 @@
   <meta name="description" content="Hourly 1 km PM2.5 fields for Kandy, Sri Lanka (2019–2026): heatmap, terrain wind, uncertainty, background/local split, weather conditions and documented haze events." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=1784850019" />
+  <link rel="stylesheet" href="css/style.css?v=1784851046" />
 </head>
 <body>
   <div id="loading">
@@ -39,6 +39,7 @@
     <select id="sel-day" aria-label="Day"></select>
     <select id="sel-hour" aria-label="Hour"></select>
     <span class="dt-hint">Sri Lanka time · hourly grid at :30</span>
+    <span id="dt-jumps" class="dt-jumps" aria-label="Jump to a notable hour"></span>
     <span class="spacer"></span>
     <div class="transport">
       <button id="prev" title="Previous hour (←)">&#9664;</button>
@@ -102,6 +103,7 @@
         <button id="dl-png" class="dl-btn">PNG map</button>
         <button id="dl-csv" class="dl-btn">field CSV</button>
         <button id="dl-point" class="dl-btn" disabled>point series CSV</button>
+        <button id="copy-link" class="dl-btn" title="Copy a link to exactly this view">copy link</button>
       </div>
     </section>
 
@@ -143,6 +145,6 @@
     <div id="credits" class="credits"></div>
   </footer>
 
-  <script type="module" src="js/app.js?v=1784850019"></script>
+  <script type="module" src="js/app.js?v=1784851046"></script>
 </body>
 </html>

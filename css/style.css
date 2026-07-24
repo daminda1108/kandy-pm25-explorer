@@ -14,7 +14,34 @@
   --radius: 14px;
   --radius-s: 9px;
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.35);
+
+  /* ── design tokens (U3, 2026-07-21) ───────────────────────────────────────
+     A single scale for type, space and elevation so every surface agrees.
+     Values match what the app already used at its most common sizes, so this
+     is a consolidation rather than a restyle. */
+  --fs-xs: 10.5px; --fs-sm: 11.5px; --fs-base: 13px; --fs-md: 14px;
+  --fs-lg: 17px;   --fs-xl: 21px;   --fs-2xl: 25px;
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 22px; --sp-6: 30px; --sp-7: 42px;
+  --elev-1: 0 1px 2px rgba(0, 0, 0, .28);
+  --elev-2: 0 6px 18px rgba(0, 0, 0, .34), 0 1px 3px rgba(0, 0, 0, .3);
+  --elev-3: var(--shadow);
+  --ring: 0 0 0 2px rgba(86, 200, 255, .40);       /* focus ring */
+  --ease: cubic-bezier(.4, 0, .2, 1);
+  --dur: .18s;
+  /* semantic state colours (shared by chips, charts and badges) */
+  --st-rain: #4aa3ff; --st-vent: #38b76a; --st-stag: #e2574c;
+  --st-reg: #c58af9;  --st-rush: #f0a35a; --st-mild: #8ba3bd;
 }
+
+/* Respect the OS reduced-motion preference across every animated surface. */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+/* Visible, consistent keyboard focus (WCAG) — the app had none. */
+:where(button, select, a, input, summary):focus-visible {
+  outline: none; box-shadow: var(--ring); border-radius: var(--radius-s); }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--ink);
   font-family: Inter, system-ui, sans-serif; font-size: 14px;
@@ -335,3 +362,16 @@ footer { padding: 16px 26px 34px; border-top: 1px solid var(--line); margin-top:
 .wind-legend.is-calm { color: #9fb2c6; }
 .wind-legend.is-calm .wl-arrow { opacity: .45; }
 @media (max-width: 640px) { .wl-word { display: none; } }
+
+/* quick-jump buttons — find a notable hour without guessing dates (U3) */
+.dt-jumps { display: flex; gap: var(--sp-1); flex-wrap: wrap; margin-left: var(--sp-2); }
+.jump-btn { background: transparent; color: var(--ink-dim); cursor: pointer;
+  border: 1px dashed var(--card-line); border-radius: 999px;
+  padding: 5px var(--sp-3); font-size: var(--fs-sm); font-family: inherit;
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease),
+              background var(--dur) var(--ease); }
+.jump-btn:hover:not(:disabled) { color: var(--ink); border-color: rgba(86, 200, 255, .45);
+  background: rgba(86, 200, 255, .06); border-style: solid; }
+.jump-btn:disabled { opacity: .5; cursor: progress; }
+.jump-btn.busy { border-style: solid; }
+@media (max-width: 860px) { .dt-jumps { order: 9; width: 100%; margin: var(--sp-1) 0 0; } }
