@@ -340,6 +340,40 @@ footer { padding: 16px 26px 34px; border-top: 1px solid var(--line); margin-top:
   background: rgba(240, 163, 90, .05); border-radius: 0 8px 8px 0; display: none; }
 .tier-banner.show { display: block; }
 
+/* ── forecast (demonstration) tier ──────────────────────────────────────────
+   Deliberately louder than the extension-year badge: a forecast for a city with
+   no monitoring station must not be mistakable for a measurement, so the banner
+   is violet-flagged, the badge is filled, and the interval leads the readout. */
+.uqtag.fcsttag { background: rgba(197, 138, 249, .18); border: 1px solid rgba(197, 138, 249, .5);
+  color: #d5b0ff; border-radius: 999px; padding: 1px 8px; letter-spacing: .3px;
+  text-transform: uppercase; font-size: 10px; font-weight: 600; }
+.tier-banner.fcst { border-left-color: rgba(197, 138, 249, .75);
+  background: rgba(197, 138, 249, .07); color: var(--ink); }
+.dt-hint.fcst-hint { color: #c58af9; cursor: help; letter-spacing: .2px; }
+option.opt-fcst { color: #c58af9; }
+#sel-year option:disabled, #sel-month option:disabled,
+#sel-day option:disabled, #sel-hour option:disabled { color: var(--ink-faint); }
+
+.fcst-evidence { margin: 8px 2px 2px; font-size: 11.5px; border-radius: 10px;
+  border: 1px solid rgba(197, 138, 249, .28); background: rgba(197, 138, 249, .05); }
+.fcst-evidence > summary { cursor: pointer; padding: 8px 12px; font-weight: 600;
+  color: #d5b0ff; list-style: none; }
+.fcst-evidence > summary::marker { content: ''; }
+.fcst-evidence > summary::before { content: '▸ '; }
+.fcst-evidence[open] > summary::before { content: '▾ '; }
+.fe-body { padding: 0 12px 12px; line-height: 1.6; color: var(--ink-dim); }
+.fe-body p { margin: 6px 0; }
+.fe-h { color: var(--ink); font-weight: 600; margin-top: 12px !important; }
+.fe-body .warn { color: #f0b98a; }
+.fe-body .dim { color: var(--ink-faint); }
+.fe-tab { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 11px; }
+.fe-tab th { text-align: right; font-weight: 500; color: var(--ink-faint); padding: 2px 6px; }
+.fe-tab th:first-child { text-align: left; }
+.fe-tab td { padding: 3px 6px; text-align: right; border-top: 1px solid var(--line); }
+.fe-tab td:first-child { text-align: left; color: var(--ink-dim); }
+.fe-tab tr.key td { color: var(--ink); font-weight: 600; }
+.fc-flag { color: #c58af9; font-weight: 600; }
+
 /* conditions chip — the one-line "why is this hour like this" state (U1) */
 .cond-chip { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
   margin: 2px 2px 8px; padding: 7px 12px; border-radius: 999px; font-size: 12px;

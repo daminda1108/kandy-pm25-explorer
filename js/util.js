@@ -1,7 +1,16 @@
 // util.js — helpers: fetch+gunzip, colour scales, DOM, canvas, math.
 
+// Payload cache-busting. The JS modules are versioned in their import URLs and the
+// version is bumped on every deploy; this module reads its OWN version out of
+// import.meta.url and stamps it onto every data request too. Without it a returning
+// visitor keeps the previously cached scalars/chunks after a re-export — the payload
+// silently disagrees with the code that reads it, which is how a stale record end
+// survives a rebuild (found 2026-07-27 verifying the forecast gap fill).
+const PAYLOAD_V = (import.meta.url.match(/[?&]v=([^&]+)/) || [, 'dev'])[1];
+const bust = (url) => url + (url.includes('?') ? '&' : '?') + 'v=' + PAYLOAD_V;
+
 export async function getJSON(url) {
-  const r = await fetch(url);
+  const r = await fetch(bust(url));
   if (!r.ok) throw new Error(`fetch ${url}: ${r.status}`);
   return r.json();
 }
@@ -10,7 +19,7 @@ export async function getJSON(url) {
 // GitHub Pages serves .gz as opaque bytes (no Content-Encoding), so we inflate
 // client-side via the streams API.
 export async function getGzip(url) {
-  const r = await fetch(url);
+  const r = await fetch(bust(url));
   if (!r.ok) throw new Error(`fetch ${url}: ${r.status}`);
   const ds = new DecompressionStream('gzip');
   const stream = r.body.pipeThrough(ds);

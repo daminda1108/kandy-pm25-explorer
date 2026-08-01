@@ -6,7 +6,10 @@
 // zero-ground-data tier (Tv,Tv05,Tv95 — Medellín), the SAME P_local reconstructs
 // that tier with the alternative anchors (identical pattern by construction).
 
-import { getJSON, getGzip } from './util.js?v=1784976747';
+import { getJSON, getGzip } from './util.js?v=1785161263';
+
+// synthetic "year" key for the forecast tier (see initForecast)
+export const STORE_FCST = 'F';
 
 export class Store {
   constructor(city) {
@@ -151,9 +154,11 @@ export class Store {
              core05: Math.min(q05[cp], q50[cp]), core95: Math.max(q95[cp], q50[cp]),
              u10: s.u10[gi], v10: s.v10[gi], blh: s.blh[gi],
              wspd: s.wspd[gi], wdir: s.wdir_from[gi],
-             t2m: s.t2m ? s.t2m[gi] : NaN,
-             rh: s.rh ? s.rh[gi] : NaN,
-             rain: s.rain ? s.rain[gi] : NaN,
+             // ?? NaN: the forecast tier ships null where the driver set carries no
+             // humidity or rain, and the panels test with Number.isFinite.
+             t2m: s.t2m ? (s.t2m[gi] ?? NaN) : NaN,
+             rh: s.rh ? (s.rh[gi] ?? NaN) : NaN,
+             rain: s.rain ? (s.rain[gi] ?? NaN) : NaN,
              tsUTC: s.hours_utc[gi] };
   }
 
@@ -161,6 +166,7 @@ export class Store {
   async windField(year, gi) {
     if (!this.wind) return null;
     const s = await this.getScalars(year);
+    if (s.i0[gi] == null) return null;      // level-only hour: no wind to blend
     const w = this.wind, cells = w.cells;
     const i0 = s.i0[gi], i1 = (i0 + 1) % w.nDir;
     const wd0 = s.wd0[gi], wd1 = 1 - wd0, cs0 = s.cs0[gi], cs1 = 1 - cs0;
@@ -180,6 +186,177 @@ export class Store {
         }
       }
     return { U, V, gy: w.gy, gx: w.gx, lats: w.lats, lons: w.lons };
+  }
+
+  // ── forecast tier ───────────────────────────────────────────────────────────
+  // A DEMONSTRATION tier. live.json carries a basin-mean forecast (median + an
+  // OOD-widened 90% interval) and its background B, but no forecast 1 km pattern —
+  // there is no such thing. The field is therefore rebuilt through the IDENTICAL
+  // equation as any historical hour, with P_local taken from the (month, local
+  // hour) CLIMATOLOGY of the most recent reconstructed year. Level is forecast;
+  // street-scale pattern is a typical-for-this-hour average. The banner says so.
+  //
+  // Mechanically the forecast is registered as a synthetic year (STORE_FCST) with
+  // a scalars object and a pre-seeded month record, so field() / windField() /
+  // every panel work unchanged rather than through a parallel code path.
+  async initForecast() {
+    let live;
+    try { live = await getJSON(`${this.base}/live.json`); } catch { return null; }
+    const iss = (live && live.issuances) || [];
+    if (!iss.length) return null;
+
+    // Merge, in increasing order of authority, so the best available source for each
+    // valid hour wins:
+    //   1. forecast issuances, newest last (they are appended chronologically)
+    //   2. the NOWCAST — GEOS-CF analysis at zero lead, which beats any forecast
+    // Hours whose only source is an issuance written before meteorology was carried
+    // are `level_only`: the field still rebuilds (it needs T, B and P, not met) but
+    // wind and weather are withheld rather than filled from a different product.
+    const byH = new Map();
+    for (const it of iss) {
+      if (!it.B) continue;                         // no background -> no field
+      for (let i = 0; i < it.hours.length; i++)
+        byH.set(it.hours[i], { i, it, met: it.met || null, kind: 'forecast' });
+    }
+    const nc = live.nowcast;
+    if (nc && nc.hours) {
+      for (let j = 0; j < nc.hours.length; j++)
+        byH.set(nc.hours[j], { i: j, it: nc, met: nc, kind: 'recent' });
+    }
+    if (!byH.size) return null;
+
+    // keep only hours the historical record does not already cover
+    let lastHist = -Infinity;
+    for (const y of this.meta.years) {
+      const s = await this.getScalars(y);
+      lastHist = Math.max(lastHist, s.hours_utc[s.hours_utc.length - 1]);
+    }
+    const hours = [...byH.keys()].filter((h) => h > lastHist).sort((a, b) => a - b);
+    if (!hours.length) return null;
+
+    const npx = this.npx, ltOff = this.city.tzOffsetH * 3600;
+    const S = { hours_utc: hours, T: [], B: [], T05: [], T95: [], B_lo: [], B_hi: [],
+                u10: [], v10: [], blh: [], wspd: [], wdir_from: [], basin: [], core: [],
+                t2m: [], rh: [], rain: [], pmin: [], pmax: [],
+                i0: [], wd0: [], cs0: [], wn: [],
+                kind: [] };        // 'recent' (analysis) | 'forecast' | 'level_only'
+    const li = new Int32Array(hours.length), mmOf = new Int8Array(hours.length);
+    const perMonth = new Map();                    // mm -> array of Uint16Array rows
+    const eps = this.meta.eps_floor || 0;
+    const clim = new Map();                        // mm -> {byHour, refYear}
+
+    for (let k = 0; k < hours.length; k++) {
+      const h = hours[k];
+      const { i, it, met, kind } = byH.get(h);
+      const lt = new Date((h + ltOff) * 1000);
+      const mm = lt.getUTCMonth() + 1, lh = lt.getUTCHours();
+      if (!clim.has(mm)) clim.set(mm, await this._pclim(mm));
+      const c = clim.get(mm);
+      if (!c) return null;
+      const P = c.byHour[lh];
+
+      const T = it.fcst[i], B = it.B[i], lo = it.lo[i], hi = it.hi[i];
+      let pmin = Infinity, pmax = -Infinity, basin = 0;
+      for (let p = 0; p < npx; p++) {
+        if (P[p] < pmin) pmin = P[p];
+        if (P[p] > pmax) pmax = P[p];
+      }
+      const span = (pmax - pmin) || 1e-6;
+      const rows = new Uint16Array(npx);
+      const cf = Math.max(Math.max(T - B, 0), eps);
+      const k0 = Math.min(T - B, 0) - Math.max(0, eps - Math.max(T - B, 0));
+      for (let p = 0; p < npx; p++) {
+        rows[p] = Math.round((P[p] - pmin) / span * 65535);
+        basin += Math.max(B + cf * P[p] + k0, 0);
+      }
+      if (!perMonth.has(mm)) perMonth.set(mm, []);
+      const blk = perMonth.get(mm);
+      li[k] = blk.length; mmOf[k] = mm;
+      blk.push(rows);
+
+      S.T.push(T); S.B.push(B); S.T05.push(lo); S.T95.push(hi);
+      S.B_lo.push(B); S.B_hi.push(B);
+      S.basin.push(basin / npx); S.core.push(NaN);
+      S.pmin.push(pmin); S.pmax.push(pmax);
+      S.kind.push(met ? kind : 'level_only');
+      const g = (f) => (met ? met[f][i] : null);
+      S.u10.push(g('u10')); S.v10.push(g('v10')); S.blh.push(g('blh'));
+      S.wspd.push(g('wspd')); S.wdir_from.push(g('wdir_from')); S.t2m.push(g('t2m'));
+      S.rh.push(null); S.rain.push(null);
+      S.i0.push(g('i0')); S.wd0.push(g('wd0')); S.cs0.push(g('cs0')); S.wn.push(g('wn'));
+    }
+
+    for (const [mm, blk] of perMonth) {
+      const rows = new Uint16Array(blk.length * npx);
+      blk.forEach((r, j) => rows.set(r, j * npx));
+      this.months.set(`${STORE_FCST}-${mm}`, { rows, npx });
+    }
+    this.scalars.set(STORE_FCST, S);
+    this._monthIndex.set(STORE_FCST, { li, mmOf });
+
+    this.forecast = {
+      hours, issued: (byH.get(hours[hours.length - 1]).it.issued) || null,
+      nowcastEnd: nc && nc.hours && nc.hours.length
+        ? nc.hours[nc.hours.length - 1] : null,
+      ood_k: live.ood_widen ? live.ood_widen.k : null,
+      ood: live.ood_widen || null,
+      evidence: live.evidence || null,
+      about: live.about || '',
+      regional: live.regional || null,
+      updated: live.updated || null,
+      refYears: Object.fromEntries([...clim].map(([mm, c]) => [mm, c.refYear])),
+    };
+    return this.forecast;
+  }
+
+  // (month, local hour) climatology of P_local from the most recent year that has
+  // a full chunk for that month. Unit-mean by construction, so it carries pattern
+  // only — the level comes entirely from the forecast anchors.
+  async _pclim(mm) {
+    const npx = this.npx, ltOff = this.city.tzOffsetH * 3600;
+    for (const y of [...this.meta.years].reverse()) {
+      const s = await this.getScalars(y);
+      const { li, mmOf } = this._monthIndex.get(y);
+      const gis = [];
+      for (let gi = 0; gi < mmOf.length; gi++) if (mmOf[gi] === mm) gis.push(gi);
+      if (gis.length < 24 * 10) continue;                 // need a representative month
+      let month;
+      try { month = await this.getMonth(y, mm); } catch { continue; }
+      const acc = Array.from({ length: 24 }, () => new Float64Array(npx));
+      const cnt = new Int32Array(24);
+      for (const gi of gis) {
+        const lh = new Date((s.hours_utc[gi] + ltOff) * 1000).getUTCHours();
+        const off = li[gi] * npx, pmin = s.pmin[gi], span = s.pmax[gi] - s.pmin[gi];
+        const a = acc[lh];
+        for (let p = 0; p < npx; p++) a[p] += pmin + month.rows[off + p] / 65535 * span;
+        cnt[lh]++;
+      }
+      const byHour = [];
+      for (let h = 0; h < 24; h++) {
+        const out = new Float32Array(npx);
+        const n = cnt[h] || 1;
+        for (let p = 0; p < npx; p++) out[p] = acc[h][p] / n;
+        byHour.push(out);
+      }
+      if (cnt.some((c) => c === 0)) continue;             // incomplete diurnal cover
+      return { byHour, refYear: y };
+    }
+    return null;
+  }
+
+  isForecast(year) { return year === STORE_FCST; }
+
+  // 'recent' (GEOS-CF analysis, zero lead) | 'forecast' (future) | 'level_only'
+  // (level exists, meteorology does not) | null for the reconstructed record.
+  kindAt(year, gi) {
+    if (year !== STORE_FCST) return null;
+    const s = this.scalars.get(STORE_FCST);
+    return s && s.kind ? s.kind[gi] : null;
+  }
+  hasMet(year, gi) {
+    if (year !== STORE_FCST) return true;
+    const s = this.scalars.get(STORE_FCST);
+    return !!(s && s.i0[gi] != null);
   }
 
   async getHealth() {

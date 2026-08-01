@@ -1,17 +1,17 @@
 // app.js — PM2.5 Explorer orchestrator (city-aware: Kandy default, Medellín
 // proving ground). All per-city behaviour comes from cities.js.
 
-import { $, el, fmt, fmtCI, clamp } from './util.js?v=1784976747';
-import { activeCity } from './cities.js?v=1784976747';
-import { Store } from './store.js?v=1784976747';
-import { colourMode, paintField, paintColourbar } from './field.js?v=1784976747';
-import { WindLayer, windWords } from './wind.js?v=1784976747';
-import { Timeline } from './timeline.js?v=1784976747';
-import { Overlay } from './overlay.js?v=1784976747';
-import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1784976747';
-import { initShowcase } from './showcase.js?v=1784976747';
-import { MapView } from './mapview.js?v=1784976747';
-import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1784976747';
+import { $, el, fmt, fmtCI, clamp } from './util.js?v=1785161263';
+import { activeCity } from './cities.js?v=1785161263';
+import { Store, STORE_FCST } from './store.js?v=1785161263';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1785161263';
+import { WindLayer, windWords } from './wind.js?v=1785161263';
+import { Timeline } from './timeline.js?v=1785161263';
+import { Overlay } from './overlay.js?v=1785161263';
+import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1785161263';
+import { initShowcase } from './showcase.js?v=1785161263';
+import { MapView } from './mapview.js?v=1785161263';
+import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1785161263';
 
 const MAP = 840;                    // internal map canvas resolution (square)
 const CITY = activeCity();
@@ -93,6 +93,13 @@ async function boot() {
   loadStep('years', true);
   loadStep('field');
 
+  // forecast tier (demonstration): registers the live payload as a synthetic year,
+  // then the pickers offer those hours and disable everything nothing holds.
+  try { await store.initForecast(); } catch (e) { console.warn('forecast tier off:', e); }
+  await buildAvailability();
+  refreshDatetimeOptions({ keepSelection: false });
+  buildForecastCard();
+
   $('#integrity-text').textContent = store.meta.integrity;
   buildEpisodes();
   buildCredits();
@@ -151,8 +158,10 @@ async function seek(year, gi) {
   render(f);
   timeline.setCursor(year, state.gi);
   syncDatetime(f.tsUTC);
+  // null on a level-only hour (modelled level, no recoverable meteorology) — clear
+  // the layer rather than leaving the previous hour's flow drifting under a new field
   const wf = await store.windField(year, state.gi);
-  if (wf) wind.setField(wf);
+  wind.setField(wf);
   drawWindLegend(f);
   updatePanels(f);
   writeHash(f);
@@ -246,7 +255,7 @@ async function restoreFromHash() {
   if (p.get('v') === 'insights') setSurface('insights', { push: false });
   // locate the nearest shipped hour to the requested timestamp
   let best = null;
-  for (const y of store.meta.years) {
+  for (const y of yearKeys()) {                   // includes the forecast tier
     const s = await store.getScalars(y);
     for (let i = 0; i < s.hours_utc.length; i++) {
       const d = Math.abs(s.hours_utc[i] - t);
@@ -330,25 +339,104 @@ function render(f) {
   // provenance flags: the blind (zero-ground-data) tier, and — for years past the
   // satellite anchor — the modelled extension tier (meta.tiers.extension).
   const extYears = (store.meta.tiers || {}).extension || [];
-  const isExt = extYears.includes(f.year);
+  const isFcst = store.isForecast(f.year);
+  const kind = isFcst ? store.kindAt(f.year, f.gi) : null;
+  const isExt = !isFcst && extYears.includes(f.year);
   const tierTag = (f.tier === 'vand'
       ? ' <span class="uqtag">zero-ground-data tier</span>' : '')
     + (isExt ? ' <span class="uqtag exttag" title="'
         + (store.meta.tier_note || '').replace(/"/g, '&quot;')
-        + '">modelled extension year</span>' : '');
+        + '">modelled extension year</span>' : '')
+    + (isFcst ? ` <span class="uqtag fcsttag">${KIND_TAG[kind] || 'forecast'} · demonstration</span>` : '');
+  // On a forecast hour the RANGE leads and the median is secondary: the interval is
+  // the honest quantity, and Kandy has no station that could check the point value.
+  const readout = isFcst
+    ? `<span class="readout"><b>${fmt(f.basin05)} – ${fmt(f.basin95)}</b> µg/m³ `
+      + `<span class="dim">90% range, basin mean · most likely near ${fmt(f.basin)}</span></span>`
+    : `<span class="readout">basin ${fmtCI(f.basin, f.basin05, f.basin95)} · `
+      + `centre ${fmtCI(f.core, f.core05, f.core95)} · `
+      + `peak ${fmtCI(f.peak.v, f.peak.lo, f.peak.hi)} µg/m³`
+      + ` <span class="dim">near ${nearLandmark(f.peak.lat, f.peak.lon)}</span></span>`;
   $('#map-title').innerHTML =
-    `<b>${day} ${hm}</b> · ${seasonOf(month)}, ${daypart(lh)}`
-    + `<span class="readout">basin ${fmtCI(f.basin, f.basin05, f.basin95)} · `
-    + `centre ${fmtCI(f.core, f.core05, f.core95)} · `
-    + `peak ${fmtCI(f.peak.v, f.peak.lo, f.peak.hi)} µg/m³`
-    + ` <span class="dim">near ${nearLandmark(f.peak.lat, f.peak.lon)}</span></span>`
-    + tierTag
+    `<b>${day} ${hm}</b> · ${seasonOf(month)}, ${daypart(lh)}` + readout + tierTag
     + (state.showUQ ? ' <span class="uqtag">showing 90% upper bound</span>' : '');
   const tb = $('#tier-banner');
   if (tb) {
-    tb.textContent = isExt ? (store.meta.tier_note || '') : '';
-    tb.classList.toggle('show', isExt);
+    tb.textContent = isFcst ? forecastBanner(kind) : (isExt ? (store.meta.tier_note || '') : '');
+    tb.classList.toggle('show', isFcst || isExt);
+    tb.classList.toggle('fcst', isFcst);
   }
+  const ev = $('#fcst-evidence');
+  if (ev) ev.style.display = isFcst ? '' : 'none';
+}
+
+// Three kinds of modelled hour sit past the end of the reconstructed record, and
+// they are not equally strong. They are labelled separately rather than lumped in.
+const KIND_TAG = { recent: 'recent · modelled', forecast: 'forecast',
+                   level_only: 'level only' };
+
+function forecastBanner(kind) {
+  const fc = store.forecast || {};
+  const ref = Object.values(fc.refYears || {})[0];
+  const lead = kind === 'recent'
+    ? 'DEMONSTRATION — recent hours, modelled. This is past the end of the '
+      + 'reconstructed record, so the level comes from the same Kandy model driven by '
+      + "NASA GEOS-CF's near-real-time analysis rather than reanalysis. It is not a "
+      + 'forecast, and it is still not a measurement.'
+    : kind === 'level_only'
+    ? 'DEMONSTRATION — level only. These hours fall between the end of the '
+      + 'reconstructed record and the current analysis window, so only a modelled '
+      + 'level survives for them: wind and weather are not available and are hidden '
+      + 'rather than filled in from another source.'
+    : 'DEMONSTRATION — a forecast, not a measurement. The basin-mean level comes '
+      + 'from the frozen Kandy model driven by the NASA GEOS-CF forecast.';
+  return lead + ' The street-scale pattern is the typical pattern for this month and '
+    + 'hour' + (ref ? ` (from ${ref})` : '') + ', not a predicted one. Kandy has no '
+    + 'public monitoring station, so nothing here is checked against local '
+    + `measurements. The 90% range is widened ${fc.ood_k || 1.35}× because Kandy is `
+    + 'outside the regime this method was validated in — read the range, not the middle.';
+}
+
+// "What stands behind this" — the borrowed evidence, stated as borrowed.
+function buildForecastCard() {
+  const box = $('#fcst-evidence');
+  if (!box) return;
+  const fc = store.forecast;
+  if (!fc) { box.style.display = 'none'; return; }
+  const ev = fc.evidence || {};
+  const rows = (ev.rows || []).map((r) =>
+    `<tr class="${r.key ? 'key' : ''}"><td>${r.name}</td>`
+    + `<td>${r.rmse.toFixed(2)}</td><td>${r.r != null ? r.r.toFixed(3) : '—'}</td></tr>`).join('');
+  const live = ev.live
+    ? `<p class="note">Its live scoreboard at Medellín is currently scoring `
+      + `${ev.live.summary.n_hours.toLocaleString()} matured hours `
+      + `(skill ${ev.live.summary.skill_vs_persistence}). `
+      + `<a href="${ev.live.url}" target="_blank" rel="noopener">see it</a></p>`
+    : `<p class="note">Medellín's live scoreboard is running but has not yet matured `
+      + `enough observed hours to score; the held-out backtest above is the evidence.</p>`;
+  box.innerHTML =
+    `<summary>What stands behind this forecast — and what does not</summary>`
+    + `<div class="fe-body">`
+    + `<p><b>No part of this forecast has been verified in Kandy.</b> There is no public `
+    + `in-basin monitoring station to score it against, so it is shown as a `
+    + `demonstration of the method rather than as a checked product. `
+    + `<a href="method.html" target="_blank">How it works</a></p>`
+    + `<p class="fe-h">${ev.title || 'Held-out validation'}</p>`
+    + `<p class="note">${ev.protocol || ''}</p>`
+    + `<table class="fe-tab"><thead><tr><th></th><th>RMSE</th><th>r</th></tr></thead>`
+    + `<tbody>${rows}</tbody></table>`
+    + `<p class="note">Skill against 24 h persistence <b>+${(ev.skill_vs_persistence ?? 0).toFixed(3)}</b>`
+    + ` · seasonal shape r ${ev.seasonal_r ?? '—'} · daily shape r ${ev.diurnal_r ?? '—'}`
+    + ` · ${(ev.n_hours || 0).toLocaleString()} station-hours.</p>`
+    + (ev.not_a_kandy_number ? `<p class="note warn">${ev.not_a_kandy_number}</p>` : '')
+    + live
+    + `<p class="fe-h">Why the range is wide</p>`
+    + `<p class="note">${(fc.ood || {}).why || ''}</p>`
+    + `<p class="note">${(fc.ood || {}).transfer || ''}</p>`
+    + `<p class="note dim">Issued ${String(fc.issued || '').replace('T', ' ')} UTC `
+    + `· payload updated ${String(fc.updated || '').slice(0, 16)}Z</p>`
+    + `</div>`;
+  box.style.display = 'none';
 }
 
 function nearLandmark(lat, lon) {
@@ -361,28 +449,131 @@ function nearLandmark(lat, lon) {
 }
 
 // ── date & time dropdowns ─────────────────────────────────────────────────────
-function wireDatetime() {
+// The pickers are driven by an AVAILABILITY index rather than by calendar
+// arithmetic: an hour is offerable only if some tier actually holds it. That does
+// three things at once — the gap between the end of the reconstructed record and
+// the start of the forecast window becomes visibly unselectable instead of
+// silently snapping to the nearest hour; forecast hours become reachable; and
+// they can be marked as forecast in the list the moment they are offered.
+const AVAIL = { hours: new Map(),   // "Y-M-D-H"  -> [yearKey, gi, isForecast]
+                days: new Map(),    // "Y-M-D"    -> { n, fcst }
+                years: [] };
+
+function ltParts(tsUTC) {
+  const d = ltDate(tsUTC);
+  return { Y: d.getUTCFullYear(), M: d.getUTCMonth() + 1,
+           D: d.getUTCDate(), H: d.getUTCHours() };
+}
+
+function yearKeys() {
+  return store.forecast ? [...store.meta.years, STORE_FCST] : [...store.meta.years];
+}
+
+async function buildAvailability() {
+  AVAIL.hours.clear(); AVAIL.days.clear();
+  for (const yk of yearKeys()) {
+    const s = await store.getScalars(yk);
+    const isF = yk === STORE_FCST;
+    for (let i = 0; i < s.hours_utc.length; i++) {
+      const { Y, M, D, H } = ltParts(s.hours_utc[i]);
+      // carry the minute: the record sits on the :30 LT grid while GEOS-CF forecast
+      // steps land on :00, and a label must not claim an hour the tier does not hold
+      const mi = ltDate(s.hours_utc[i]).getUTCMinutes();
+      AVAIL.hours.set(`${Y}-${M}-${D}-${H}`, [yk, i, isF, mi]);
+      const dk = `${Y}-${M}-${D}`;
+      const rec = AVAIL.days.get(dk) || { n: 0, fcst: false };
+      rec.n++; rec.fcst = rec.fcst || isF;
+      AVAIL.days.set(dk, rec);
+    }
+  }
+  AVAIL.years = [...new Set([...AVAIL.days.keys()].map((k) => +k.split('-')[0]))]
+    .sort((a, b) => a - b);
+}
+
+const dayRec = (Y, M, D) => AVAIL.days.get(`${Y}-${M}-${D}`);
+const monthHas = (Y, M) => {
+  for (let d = 1; d <= 31; d++) if (dayRec(Y, M, d)) return true;
+  return false;
+};
+const monthFcst = (Y, M) => {
+  for (let d = 1; d <= 31; d++) { const r = dayRec(Y, M, d); if (r && r.fcst) return true; }
+  return false;
+};
+const yearFcst = (Y) => { for (let m = 1; m <= 12; m++) if (monthFcst(Y, m)) return true; return false; };
+
+function opt(value, label, { disabled = false, fcst = false } = {}) {
+  const o = el('option', { value: String(value) }, label);
+  if (disabled) o.disabled = true;
+  if (fcst) o.className = 'opt-fcst';
+  return o;
+}
+
+function refreshDatetimeOptions({ keepSelection = true } = {}) {
   const ySel = $('#sel-year'), mSel = $('#sel-month'), dSel = $('#sel-day'), hSel = $('#sel-hour');
-  for (const y of store.meta.years) ySel.append(el('option', { value: y }, String(y)));
-  MONTHS.forEach((m, i) => mSel.append(el('option', { value: i + 1 }, m)));
-  for (let h = 0; h < 24; h++)
-    hSel.append(el('option', { value: h }, `${String(h).padStart(2, '0')}:${CITY.minuteLabel}`));
-  const rebuildDays = () => {
-    const y = +ySel.value, m = +mSel.value;
-    const nd = new Date(Date.UTC(y, m, 0)).getUTCDate();
-    const cur = +dSel.value || 1;
-    dSel.innerHTML = '';
-    for (let d = 1; d <= nd; d++) dSel.append(el('option', { value: d }, String(d)));
-    dSel.value = Math.min(cur, nd);
-  };
-  const go = () => {
-    rebuildDays();
-    const ts = `${ySel.value}-${String(mSel.value).padStart(2, '0')}-${String(dSel.value).padStart(2, '0')}`
-             + ` ${String(hSel.value).padStart(2, '0')}:${CITY.minuteLabel}`;
-    seekToTs(ts);
-  };
-  for (const s of [ySel, mSel, dSel, hSel]) s.addEventListener('change', go);
-  rebuildDays();
+  const wantY = keepSelection ? +ySel.value : NaN;
+  const wantM = keepSelection ? +mSel.value : NaN;
+  const wantD = keepSelection ? +dSel.value : NaN;
+  const wantH = keepSelection ? +hSel.value : NaN;
+
+  ySel.innerHTML = '';
+  for (const y of AVAIL.years)
+    ySel.append(opt(y, yearFcst(y) ? `${y} ▸` : String(y), { fcst: yearFcst(y) }));
+  ySel.value = AVAIL.years.includes(wantY) ? wantY : AVAIL.years[AVAIL.years.length - 1];
+  const Y = +ySel.value;
+
+  mSel.innerHTML = '';
+  for (let m = 1; m <= 12; m++)
+    mSel.append(opt(m, MONTHS[m - 1] + (monthFcst(Y, m) ? ' ▸' : ''),
+                    { disabled: !monthHas(Y, m), fcst: monthFcst(Y, m) }));
+  if (!(monthHas(Y, wantM))) {
+    let pick = null;
+    for (let m = 12; m >= 1; m--) if (monthHas(Y, m)) { pick = m; break; }
+    mSel.value = pick ?? 1;
+  } else mSel.value = wantM;
+  const M = +mSel.value;
+
+  const nd = new Date(Date.UTC(Y, M, 0)).getUTCDate();
+  dSel.innerHTML = '';
+  for (let d = 1; d <= nd; d++) {
+    const r = dayRec(Y, M, d);
+    dSel.append(opt(d, r && r.fcst ? `${d} ▸` : String(d),
+                    { disabled: !r, fcst: !!(r && r.fcst) }));
+  }
+  if (!dayRec(Y, M, wantD)) {
+    let pick = null;
+    for (let d = nd; d >= 1; d--) if (dayRec(Y, M, d)) { pick = d; break; }
+    dSel.value = pick ?? 1;
+  } else dSel.value = wantD;
+  const D = +dSel.value;
+
+  hSel.innerHTML = '';
+  for (let h = 0; h < 24; h++) {
+    const rec = AVAIL.hours.get(`${Y}-${M}-${D}-${h}`);
+    const mi = rec ? String(rec[3]).padStart(2, '0') : CITY.minuteLabel;
+    const label = `${String(h).padStart(2, '0')}:${mi}`;
+    hSel.append(opt(h, rec && rec[2] ? `${label} ▸` : label,
+                    { disabled: !rec, fcst: !!(rec && rec[2]) }));
+  }
+  if (!AVAIL.hours.has(`${Y}-${M}-${D}-${wantH}`)) {
+    let pick = null;
+    for (let h = 0; h < 24; h++) if (AVAIL.hours.has(`${Y}-${M}-${D}-${h}`)) { pick = h; break; }
+    hSel.value = pick ?? 0;
+  } else hSel.value = wantH;
+
+  const hint = $('#dt-hint-fcst');
+  if (hint) hint.style.display = store.forecast ? '' : 'none';
+}
+
+function wireDatetime() {
+  const sels = ['#sel-year', '#sel-month', '#sel-day', '#sel-hour'].map((s) => $(s));
+  for (const s of sels) s.addEventListener('change', () => {
+    if (syncing) return;
+    refreshDatetimeOptions();
+    const Y = +$('#sel-year').value, M = +$('#sel-month').value,
+          D = +$('#sel-day').value, H = +$('#sel-hour').value;
+    const rec = AVAIL.hours.get(`${Y}-${M}-${D}-${H}`);
+    if (rec) seek(rec[0], rec[1]);
+  });
   wireJumps();
 }
 
@@ -438,17 +629,14 @@ async function wireJumps() {
 let syncing = false;
 function syncDatetime(tsUTC) {
   syncing = true;
-  const d = ltDate(tsUTC);
-  $('#sel-year').value = d.getUTCFullYear();
-  $('#sel-month').value = d.getUTCMonth() + 1;
-  const dSel = $('#sel-day');
-  const nd = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
-  if (dSel.options.length !== nd) {
-    dSel.innerHTML = '';
-    for (let dd = 1; dd <= nd; dd++) dSel.append(el('option', { value: dd }, String(dd)));
+  const { Y, M, D, H } = ltParts(tsUTC);
+  if (AVAIL.years.length) {
+    $('#sel-year').value = Y; $('#sel-month').value = M;
+    $('#sel-day').value = D; $('#sel-hour').value = H;
+    refreshDatetimeOptions();          // re-marks disabled/forecast for the new day
+    $('#sel-year').value = Y; $('#sel-month').value = M;
+    $('#sel-day').value = D; $('#sel-hour').value = H;
   }
-  dSel.value = d.getUTCDate();
-  $('#sel-hour').value = d.getUTCHours();
   syncing = false;
 }
 

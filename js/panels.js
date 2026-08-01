@@ -3,7 +3,7 @@
 // decomposition split, exposure/health, click-a-pixel point query.
 // Every numeric estimate carries its interval.
 
-import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1784976747';
+import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1785161263';
 
 let store, seekCb, curField, city;
 let LT = 5.5 * 3600;
@@ -99,7 +99,18 @@ async function drawDiurnal(f) {
     }
   }
   const markHour = new Date((f.tsUTC + LT) * 1000).getUTCHours() + hfrac;
-  diurnalChart($('#diurnal-canvas'), pts, obs, markHour, pixLine, rain);
+  const fcst = store.isForecast(f.year);
+  diurnalChart($('#diurnal-canvas'), pts, obs, markHour, pixLine, rain, { fcst });
+  if (fcst) {
+    // Band-first on a forecast day: the interval is the claim, the median is a
+    // hairline through it. Nothing here can be checked against a Kandy station.
+    const lo = Math.min(...pts.map((p) => p[2])), hi = Math.max(...pts.map((p) => p[3]));
+    $('#diurnal-note').innerHTML =
+      `<span class="dot dot-band"></span> <b>90% range ${fmt(lo)} – ${fmt(hi)} µg/m³</b>`
+      + ` (widened for out-of-regime use) · <span class="dot dot-line"></span> most likely`
+      + ` · <span class="fc-flag">forecast — no local verification</span>`;
+    return;
+  }
   const loc = pinnedPx != null
     ? ` · <span class="dot dot-loc"></span> clicked location` : '';
   const rainLeg = rain.length
@@ -112,7 +123,7 @@ async function drawDiurnal(f) {
     + rainLeg + loc;
 }
 
-function diurnalChart(canvas, pts, obs, markHour, pixLine, rain = []) {
+function diurnalChart(canvas, pts, obs, markHour, pixLine, rain = [], opts = {}) {
   const { ctx, w: W, h: H } = fitCanvas(canvas, panelW(canvas), 168);
   ctx.clearRect(0, 0, W, H);
   if (!pts.length) return;
@@ -161,22 +172,36 @@ function diurnalChart(canvas, pts, obs, markHour, pixLine, rain = []) {
   ctx.beginPath(); smoothPath(ctx, up);
   const first = dn[0]; ctx.lineTo(first[0], first[1]);
   smoothPath(ctx, dn); ctx.closePath();
-  ctx.fillStyle = 'rgba(86,200,255,0.10)';
+  // forecast days show the band as the primary object (opaque fill + an outline);
+  // historical days keep it as context behind a validated median.
+  ctx.fillStyle = opts.fcst ? 'rgba(197,138,249,0.26)' : 'rgba(86,200,255,0.10)';
   ctx.fill();
+  if (opts.fcst) {
+    ctx.strokeStyle = 'rgba(197,138,249,0.75)'; ctx.lineWidth = 1.2; ctx.stroke();
+  }
 
-  // area under the median (soft gradient)
+  // area under the median (soft gradient) — omitted on a forecast day so the filled
+  // area cannot read as the answer
   const line = pts.map((p) => [X(p[0]), Y(p[1])]);
-  const grad = ctx.createLinearGradient(0, pad.t, 0, H - pad.b);
-  grad.addColorStop(0, 'rgba(240,163,90,0.28)');
-  grad.addColorStop(1, 'rgba(240,163,90,0.02)');
-  ctx.beginPath(); smoothPath(ctx, line);
-  ctx.lineTo(line[line.length - 1][0], Y(0)); ctx.lineTo(line[0][0], Y(0)); ctx.closePath();
-  ctx.fillStyle = grad; ctx.fill();
+  if (!opts.fcst) {
+    const grad = ctx.createLinearGradient(0, pad.t, 0, H - pad.b);
+    grad.addColorStop(0, 'rgba(240,163,90,0.28)');
+    grad.addColorStop(1, 'rgba(240,163,90,0.02)');
+    ctx.beginPath(); smoothPath(ctx, line);
+    ctx.lineTo(line[line.length - 1][0], Y(0)); ctx.lineTo(line[0][0], Y(0)); ctx.closePath();
+    ctx.fillStyle = grad; ctx.fill();
+  }
 
-  // median line
+  // median line — a thin dashed hairline when forecasting, a solid line otherwise
   ctx.beginPath(); smoothPath(ctx, line);
-  ctx.strokeStyle = '#f0a35a'; ctx.lineWidth = 2.2; ctx.lineJoin = 'round';
+  if (opts.fcst) {
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = 'rgba(245,240,255,0.8)'; ctx.lineWidth = 1.1;
+  } else {
+    ctx.strokeStyle = '#f0a35a'; ctx.lineWidth = 2.2;
+  }
+  ctx.lineJoin = 'round';
   ctx.stroke();
+  ctx.setLineDash([]);
 
   // clicked-location line (dashed cyan) — shows the local diurnal amplitude
   if (pixLine && pixLine.length) {
@@ -213,7 +238,10 @@ function niceStep(ymax) {
 // ── seasonal context: monthly means for the year, current month highlighted ──
 const seasonCache = new Map();
 async function drawSeason(f) {
-  const year = f.year;
+  // A forecast covers a few days, so its "monthly means" would be one bar; show the
+  // most recent complete record year instead and say which year that is.
+  const year = store.isForecast(f.year)
+    ? store.meta.years[store.meta.years.length - 1] : f.year;
   if (!seasonCache.has(year)) {
     const s = await store.getScalars(year);
     const sums = new Array(12).fill(0), n = new Array(12).fill(0);
@@ -260,6 +288,17 @@ function roundRect(ctx, x, y, w, h, r) {
 
 // ── weather conditions (ERA5 reanalysis for the selected hour) ───────────────
 function drawWeather(f) {
+  // level-only hours: the modelled level exists but no meteorology does. Say that,
+  // rather than rendering an empty panel that reads like a loading failure.
+  if (store.isForecast(f.year) && !store.hasMet(f.year, f.gi)) {
+    $('#weather-body').innerHTML =
+      `<p class="hnote">Weather is not available for these hours. They sit between the
+       end of the reconstructed record and the current analysis window, so only a
+       modelled PM<sub>2.5</sub> level survives — wind and temperature are withheld
+       rather than taken from a different source.</p>`;
+    const wn0 = $('#weather-note'); if (wn0) wn0.textContent = '';
+    return;
+  }
   const rows = [];
   const arrow = `<span class="warrow" style="transform:rotate(${(f.wdir + 180) % 360}deg)">↑</span>`;
   if (Number.isFinite(f.t2m)) rows.push([city.t2mLabel || 'Temperature', `<b>${fmt(f.t2m)}</b> °C`]);
@@ -316,6 +355,17 @@ function drawDecomp(f) {
 // ── exposure & health (intervals always shown) ────────────────────────────────
 async function drawHealth(year) {
   if (!city.features.health || !$('#health-body')) return;
+  if (store.isForecast(year)) {
+    // Exposure and burden are annual quantities from the completed record. A
+    // 5-day forecast cannot contribute to them, and showing the last year's
+    // numbers beside a forecast hour would imply it had.
+    const yl = $('#health-year'); if (yl) yl.textContent = 'annual record';
+    $('#health-body').innerHTML =
+      `<p class="hnote">Exposure and health burden are annual figures from the
+       reconstructed record. They are not computed for forecast hours — pick a date
+       inside the record to see them.</p>`;
+    return;
+  }
   const h = await store.getHealth();
   const d = h.per_year[year] || h.per_year[String(year)];
   const yl = $('#health-year'); if (yl) yl.textContent = year;

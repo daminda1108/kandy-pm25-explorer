@@ -54,7 +54,93 @@
   "rmse": 6.6,
   "level_bias_pct": -14.6
  },
- "pedigree": "Recipe validated at Medellin against 15-22 withheld stations (F-M2 backtest: forecast RMSE 5.04 vs 24h-persistence 6.49, skill +0.22; live self-checking scoreboard running since 2026-07). Kandy has no public in-basin station, so this forecast is shown with that pedigree and NO local self-check.",
- "regional_note": "The three Sri Lankan stations logged alongside are 25-40 km outside the basin. They sample the regional/transboundary background (~76% of Kandy PM2.5, f_local=0.24), so they are context for B(t) \u2014 not a check on the Kandy field.",
- "driver_note": "Drivers from the NASA GMAO CFAPI forecast (keyless): chm v1 PM25 -> c_prior, met x1 U/V/T/ZPBL; mean of the two 0.25 deg cells covering the basin."
+ "pedigree": "Recipe validated at Medellín against 15 withheld stations (F-M2 backtest, clean temporal split trained <=2022, scored on 2023: forecast RMSE 5.71 vs 24h-persistence 6.49, skill +0.120). Kandy has no public in-basin station, so this forecast is a DEMONSTRATION shown with that borrowed pedigree and NO local self-check.",
+ "evidence": {
+  "title": "Medellín, 2023 — 15 withheld stations",
+  "protocol": "Same recipe, same drivers. Anchor trained on 2019-2022 only and scored on 2023 hours it never saw; the 24 h persistence baseline gets no look-ahead either.",
+  "n_hours": 6443,
+  "rows": [
+   {
+    "name": "This method (GEOS-CF forecast drivers)",
+    "rmse": 5.71,
+    "r": 0.592,
+    "key": true
+   },
+   {
+    "name": "24 h persistence (the baseline to beat)",
+    "rmse": 6.49,
+    "r": 0.499
+   },
+   {
+    "name": "Raw scaled GEOS-CF forecast",
+    "rmse": 12.46,
+    "r": 0.131
+   }
+  ],
+  "skill_vs_persistence": 0.12,
+  "seasonal_r": 0.974,
+  "diurnal_r": 0.965,
+  "source": "data/processed/stage1_v3/training/forecast_backtest_m2_medellin_train2022.csv",
+  "caveat": "An earlier run of this backtest reported +0.223. That run trained on hours inside its own evaluation year; the clean split shown here roughly halves the number. All pre-registered gates still pass.",
+  "not_a_kandy_number": "Skill measured at Medellín. Kandy is a different regime (regional/transboundary-dominated, f_local~0.25, vs Medellín's local-emission dominance), so this bounds the method, not the Kandy forecast."
+ },
+ "ood_widen": {
+  "k": 1.35,
+  "why": "The forecast quantile heads were fitted in-regime on the locked 2019-2023 Kandy anchor. Kandy is out-of-regime versus every city the method was validated on, and the one measurable consequence at Kandy is that the sensorless anchor's nominal 90% interval covers only 70.7% of the local record. k=1.35 is the inflation that restores 90% coverage on that record (n=1215 days; identical by direct search and split-conformal).",
+  "transfer": "Measured on the DAILY sensorless anchor, applied to the HOURLY forecast anchor — a disclosed transfer, the same status as the wind prior. Displayed intervals are widened; the raw model interval is recoverable as median +/- (shown - median)/k.",
+  "artifact": "data/processed/decomp/kandy_forecast_ood_widening.json",
+  "measured_coverage_unwidened": 0.707,
+  "n_days": 1215
+ },
+ "regional_note": "The three Sri Lankan stations logged alongside are 25-40 km outside the basin. They sample the regional/transboundary background (~76% of Kandy PM2.5, f_local=0.24), so they are context for B(t) — not a check on the Kandy field.",
+ "driver_note": "Drivers from the NASA GMAO CFAPI forecast (keyless): chm v1 PM25 -> c_prior, met x1 U/V/T/ZPBL; mean of the two 0.25 deg cells covering the basin.",
+ "bt_ratio_month": [
+  0.55793,
+  0.53087,
+  0.63243,
+  0.88972,
+  0.96599,
+  0.77816,
+  0.79391,
+  0.82622,
+  1.11457,
+  1.01252,
+  0.95748,
+  0.63126
+ ],
+ "bt_ratio_note": "Monthly B/T ratio of the locked 2019-2023 chain. The forecast background is B = T * ratio[month] — the seasonal partition the extension tier inherits. A flat background would leave the monsoon months with T < B and flatten the local field (gotcha #61).",
+ "wind_lib": {
+  "dirs": [
+   0.0,
+   22.5,
+   45.0,
+   67.5,
+   90.0,
+   112.5,
+   135.0,
+   157.5,
+   180.0,
+   202.5,
+   225.0,
+   247.5,
+   270.0,
+   292.5,
+   315.0,
+   337.5
+  ],
+  "speeds": [
+   1.0,
+   4.0
+  ]
+ },
+ "eps_floor": 2.573,
+ "wind_calib": {
+  "gain_era5": 0.431,
+  "theta_deg": 344.5,
+  "a0": 0.3043,
+  "a1": -0.2147,
+  "b1": -0.2746,
+  "a2": -0.0576,
+  "b2": 0.0571
+ }
 }
