@@ -175,6 +175,35 @@
     and hour from the reconstructed record. The shape of the map is climatology; the level on
     top of it is the forecast.</p>
 
+    <h2 id="split">When the background and local split cannot be made</h2>
+    <p>The map separates a regional background — pollution that arrives over the valley
+    regardless of what happens in it — from the local increment on top. That separation
+    fails on a substantial minority of hours, and the site now says so rather than
+    quietly showing a flat map.</p>
+    <p>The reason is a resolution mismatch. The total is estimated hourly and swings
+    widely through the day; the background is estimated at daily resolution and does not.
+    On well-ventilated hours the total falls below the day's estimated background, which
+    leaves no increment to distribute across the map. This happens in about
+    <b>28% of all hours</b>, concentrated between April and December when the basin is
+    cleanest — roughly 2–13% of hours in January–March, rising to 27–48% from April.
+    On those hours the field is uniform <em>by construction</em>. It is not a finding
+    that local emissions have stopped.</p>
+    <p>We tried to fix it rather than describe it. Five reformulations of the background
+    were built and tested: bounding it against the total with the annual mass preserved;
+    rebuilding it from local dilution and washout physics; adding the diurnal response it
+    lacks; setting its level from an island-wide reference network; and estimating it as
+    the persistent lower envelope of the total. Each one was rejected by a measurement.
+    The obstruction is that four requirements — a background with its own dynamics, a
+    background that never exceeds the total, a regional-versus-local split inside the
+    range the published literature supports, and the observed wet-versus-dry seasonal
+    contrast — cannot all hold at once with the data available.</p>
+    <p>What would resolve it is not a better model. About 2% of hours put the modelled
+    total below the regional floor measured by a national network, and that network's
+    stations are coastal towns while Kandy is inland and elevated. A single monitor in
+    the basin, or upwind of it, would establish which of the two is wrong and remove the
+    ambiguity. Until then the annual and seasonal figures — which do not depend on this
+    split — stand, and the hourly split is reported only where it can be made.</p>
+
     <h2>Uncertainty</h2>
     <p>Every field carries a calibrated 90% interval. The map has an upper-bound toggle,
     and each numeric readout (basin, core, point queries, health figures) shows its

@@ -373,6 +373,8 @@ option.opt-fcst { color: #c58af9; }
 .fe-tab td:first-child { text-align: left; color: var(--ink-dim); }
 .fe-tab tr.key td { color: var(--ink); font-weight: 600; }
 .fc-flag { color: #c58af9; font-weight: 600; }
+/* hours where the background/local split cannot be made (see panels.js) */
+.unres { color: #f0b98a; font-weight: 600; }
 
 /* conditions chip — the one-line "why is this hour like this" state (U1) */
 .cond-chip { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;

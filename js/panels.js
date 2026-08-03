@@ -347,9 +347,24 @@ function drawDecomp(f) {
     ctx.fillText(fmt(bg + loc, 1), x0 + wB + wL + 7, y + bh / 2);
   });
   ctx.textBaseline = 'alphabetic';
-  $('#decomp-note').innerHTML =
-    `Regional background ${fmtCI(B, f.bLo, f.bHi)} µg/m³ (${fmt(100 - pctLocal, 0)}%) · `
-    + `local increment <b>${fmt(localBasin)}</b> µg/m³ (${fmt(pctLocal, 0)}%)`;
+  // UNRESOLVED HOURS. The background is estimated at daily resolution against an
+  // hourly total, and on ventilated hours the estimate lands at or above the total —
+  // 28.5% of the record, concentrated April to December. On those hours the model
+  // cannot separate local from regional: the increment is zero or negative and the
+  // field is spatially uniform by construction. Saying so is more truthful than
+  // printing "0%" beside a flat map, which reads as "there is no local emission".
+  // Five reformulations of the background were built and rejected on measurement
+  // (model reference F.13, F.15, F.17, F.18); the resolution needs a local monitor,
+  // so the honest interim is to label the limitation where the viewer meets it.
+  const unresolved = (basin - B) <= 0.05;
+  $('#decomp-note').innerHTML = unresolved
+    ? `<span class="unres">Local contribution not resolvable this hour.</span> The `
+      + `estimated regional background (${fmtCI(B, f.bLo, f.bHi)} µg/m³) is at or above `
+      + `the modelled total, so the split cannot be made — the map is uniform by `
+      + `construction, not because emissions are absent. Most common in the low season `
+      + `(April–December). <a href="method.html#split" target="_blank">why</a>`
+    : `Regional background ${fmtCI(B, f.bLo, f.bHi)} µg/m³ (${fmt(100 - pctLocal, 0)}%) · `
+      + `local increment <b>${fmt(localBasin)}</b> µg/m³ (${fmt(pctLocal, 0)}%)`;
 }
 
 // ── exposure & health (intervals always shown) ────────────────────────────────
