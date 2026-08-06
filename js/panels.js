@@ -317,7 +317,30 @@ function drawWeather(f) {
 }
 
 // ── decomposition split (regional background vs local increment) ─────────────
-function drawDecomp(f) {
+// Annual background/local split for a year, computed from the shipped scalars.
+// This is the resolution the split is IDENTIFIED at: a daily-resolution background
+// against an hourly total imposes an arithmetic floor on the local share, and the
+// hourly split sits below that floor in most months (model reference F.17). The
+// annual figure is coherent and is what the paper claims, so the panel leads with it
+// and treats the per-hour numbers as secondary.
+const annualSplitCache = new Map();
+async function annualSplit(year) {
+  if (annualSplitCache.has(year)) return annualSplitCache.get(year);
+  let out = null;
+  try {
+    const s = await store.getScalars(year);
+    let sT = 0, sB = 0, n = 0;
+    for (let i = 0; i < s.T.length; i++) {
+      const T = s.T[i], B = s.B[i];
+      if (Number.isFinite(T) && Number.isFinite(B)) { sT += T; sB += B; n++; }
+    }
+    if (n) out = { T: sT / n, B: sB / n, fLocal: 1 - (sB / n) / (sT / n) };
+  } catch { /* forecast tier or missing year: no annual figure */ }
+  annualSplitCache.set(year, out);
+  return out;
+}
+
+async function drawDecomp(f) {
   const B = f.B, basin = f.basin, core = f.core;
   const localBasin = Math.max(basin - B, 0), localCore = Math.max(core - B, 0);
   const pctLocal = basin > 0 ? (localBasin / basin) * 100 : 0;
@@ -357,14 +380,26 @@ function drawDecomp(f) {
   // (model reference F.13, F.15, F.17, F.18); the resolution needs a local monitor,
   // so the honest interim is to label the limitation where the viewer meets it.
   const unresolved = (basin - B) <= 0.05;
-  $('#decomp-note').innerHTML = unresolved
-    ? `<span class="unres">Local contribution not resolvable this hour.</span> The `
-      + `estimated regional background (${fmtCI(B, f.bLo, f.bHi)} µg/m³) is at or above `
-      + `the modelled total, so the split cannot be made — the map is uniform by `
-      + `construction, not because emissions are absent. Most common in the low season `
-      + `(April–December). <a href="method.html#split" target="_blank">why</a>`
-    : `Regional background ${fmtCI(B, f.bLo, f.bHi)} µg/m³ (${fmt(100 - pctLocal, 0)}%) · `
-      + `local increment <b>${fmt(localBasin)}</b> µg/m³ (${fmt(pctLocal, 0)}%)`;
+  const ann = await annualSplit(f.year);
+  // The ANNUAL split leads: it is the quantity the model identifies and the paper
+  // claims. The per-hour split follows as secondary, and is withheld entirely on the
+  // hours where the background estimate meets or exceeds the total.
+  const annLine = ann
+    ? `<b>Annual average ${f.year}:</b> ${fmt(100 * ann.fLocal, 0)}% local · `
+      + `${fmt(100 * (1 - ann.fLocal), 0)}% regional background `
+      + `<span class="dim">(${fmt(ann.B)} of ${fmt(ann.T)} µg/m³)</span>`
+    : '';
+  const hourLine = unresolved
+    ? `<span class="unres">This hour: not resolvable.</span> The estimated background `
+      + `(${fmtCI(B, f.bLo, f.bHi)} µg/m³) is at or above the modelled total, so the `
+      + `split cannot be made — the map is uniform by construction, not because `
+      + `emissions are absent. Most common April–December.`
+    : `This hour: background ${fmtCI(B, f.bLo, f.bHi)} µg/m³ (${fmt(100 - pctLocal, 0)}%) · `
+      + `local <b>${fmt(localBasin)}</b> µg/m³ (${fmt(pctLocal, 0)}%) — indicative; the `
+      + `split is identified annually, not hourly.`;
+  $('#decomp-note').innerHTML =
+    (annLine ? annLine + '<br>' : '') + hourLine
+    + ` <a href="method.html#split" target="_blank">why</a>`;
 }
 
 // ── exposure & health (intervals always shown) ────────────────────────────────
