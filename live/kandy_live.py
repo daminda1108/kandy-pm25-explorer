@@ -73,6 +73,14 @@ AQI_BP = [(0.0, 9.0, 0, 50), (9.1, 35.4, 51, 100), (35.5, 55.4, 101, 150),
           (55.5, 125.4, 151, 200), (125.5, 225.4, 201, 300), (225.5, 325.4, 301, 500)]
 
 
+try:
+    from adaptive_conformal import (factor as ac_factor, new_state as ac_new,
+                                    summary as ac_summary, update as ac_update)
+except ImportError:                                    # keep the runner standalone
+    from live.adaptive_conformal import (factor as ac_factor, new_state as ac_new,
+                                         summary as ac_summary, update as ac_update)
+
+
 def log(*a):
     print(*a, flush=True)
 
@@ -177,9 +185,26 @@ def issue_forecast(pack, state):
     # coverage there (scripts/kandy_forecast_ood_widening.py). Disclosed transfer:
     # measured daily, applied hourly. The raw interval stays recoverable as
     # med +/- (shown - med)/k, so nothing is lost by shipping only the widened one.
+    # Static measured factor, and the per-lead ADAPTIVE factor that can only widen
+    # beyond it (live/adaptive_conformal.py). The adapted factor is learned from what
+    # verified against the analysis tier, so it captures the growth of driver-shift
+    # error with lead that a single scalar cannot. It falls back to the static factor
+    # cold, so a fresh deployment ships exactly the previously validated interval.
     k = float(pack.get("ood_widen", {}).get("k", 1.0))
-    lo = np.clip(q50 - k * (q50 - q05), 0, None)
-    hi = q50 + k * (q95 - q50)
+    # lead = valid - initialisation. `init` comes from the CFAPI schema as a string of
+    # unspecified format, so parse defensively and fall back to the first valid hour
+    # (the earliest forecast step is at or just after initialisation).
+    try:
+        t_init = pd.to_datetime(init, utc=True)
+        if pd.isna(t_init):
+            raise ValueError(init)
+    except Exception:
+        t_init = idx[0]
+    lead_h = np.clip((idx - t_init).total_seconds().to_numpy() / 3600.0, 0.0, None)
+    kv = np.array([max(k, ac_factor(state.get("conformal"), float(L)))
+                   for L in lead_h], float)
+    lo = np.clip(q50 - kv * (q50 - q05), 0, None)
+    hi = q50 + kv * (q95 - q50)
 
     # Background for the forecast hours: B = T * (locked monthly B/T ratio), the
     # same seasonal partition the 2024-2026 extension tier inherits. A flat B would
@@ -200,7 +225,13 @@ def issue_forecast(pack, state):
            "fcst": [round(float(x), 2) for x in q50],
            "lo": [round(float(x), 2) for x in lo],
            "hi": [round(float(x), 2) for x in hi],
-           "ood_k": k}
+           "ood_k": k,
+           "ood_k_lead": [round(float(x), 3) for x in kv],
+           "lead_h": [round(float(x), 1) for x in lead_h],
+           # raw (unwidened) heads retained so any factor can be re-derived later and
+           # so the conformal update has something to score against
+           "q05_raw": [round(float(x), 2) for x in q05],
+           "q95_raw": [round(float(x), 2) for x in q95]}
     if B is not None:
         rec["B"] = [round(float(x), 2) for x in B]
     rec["met"] = {
@@ -376,6 +407,48 @@ def snapshot_assim(pack, state):
     return True
 
 
+def verify_against_analysis(state):
+    """Fold every forecast hour that the analysis tier has since covered into the
+    adaptive-conformal state.
+
+    This is the only verification available at Kandy: there is no live observation
+    stream, by the premise of the project. Scoring a forecast against the analysis
+    measures the DRIVER-SHIFT component of its error -- the part that grows with lead --
+    and not its error against reality, which is bounded separately by the sensorless
+    coverage figure and is why the static factor remains a floor. Stated in the payload
+    so the provenance of the interval is never ambiguous.
+    """
+    now = state.get("nowcast") or {}
+    truth = dict(zip(now.get("hours", []), now.get("fcst", [])))
+    if not truth:
+        return 0
+    seen = set(map(tuple, state.get("conformal_seen", [])))
+    pairs, fresh = [], []
+    for iss in state.get("issuances", []):
+        if "q05_raw" not in iss:                      # pre-adaptive issuance
+            continue
+        t0 = iss.get("issued")
+        for j, h in enumerate(iss["hours"]):
+            if h not in truth or (t0, h) in seen:
+                continue
+            lead = iss.get("lead_h", [None] * len(iss["hours"]))[j]
+            if lead is None:
+                continue
+            pairs.append((float(lead), iss["fcst"][j],
+                          iss["q05_raw"][j], iss["q95_raw"][j], truth[h]))
+            fresh.append((t0, h))
+    if not pairs:
+        return 0
+    state["conformal"] = ac_update(state.get("conformal") or ac_new(), pairs)
+    state["conformal_seen"] = [list(x) for x in (seen | set(fresh))][-20000:]
+    s = ac_summary(state["conformal"])
+    by = s.get("by_lead", {})
+    log(f"CONFORMAL: +{len(pairs)} verified pairs (n={s.get('n', 0)}); k by lead " +
+        ", ".join(f"{b}:{d['k']:.2f}" for b, d in sorted(by.items())) if by
+        else f"CONFORMAL: +{len(pairs)} pairs, warming up")
+    return len(pairs)
+
+
 def borrowed_evidence(pack, state):
     """The evidence this panel stands on — none of it measured at Kandy.
 
@@ -425,6 +498,13 @@ def main():
     except Exception as e:
         log(f"REGIONAL step failed: {e!r}")
 
+    # verify what the analysis tier has caught up with, and adapt the per-lead
+    # widening. Runs AFTER the nowcast step so it sees this run's analysis hours.
+    try:
+        verify_against_analysis(state)
+    except Exception as e:
+        log(f"CONFORMAL step failed: {e!r}")
+
     try:
         borrowed_evidence(pack, state)
     except Exception as e:
@@ -442,6 +522,7 @@ def main():
     age_h = None
     if last_issue:
         age_h = round((now - pd.Timestamp(last_issue).tz_localize("UTC")).total_seconds() / 3600, 1)
+    state["conformal_summary"] = ac_summary(state.get("conformal"))
     health = state.get("health") or {}
     health = {"runs_without_issue": 0 if ok_issue else int(health.get("runs_without_issue", 0)) + 1,
               "last_issue_utc": last_issue,
