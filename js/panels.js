@@ -389,11 +389,22 @@ async function drawDecomp(f) {
       + `${fmt(100 * (1 - ann.fLocal), 0)}% regional background `
       + `<span class="dim">(${fmt(ann.B)} of ${fmt(ann.T)} µg/m³)</span>`
     : '';
+  // On these hours the background estimate meets or exceeds the modelled total. That is
+  // NOT a statement that local emissions stopped — traffic, cooking and waste burning
+  // continue every hour of every day, so the local increment at an emitting location is
+  // strictly positive at all times, including in rain. It means the BACKGROUND ESTIMATE IS
+  // TOO HIGH for this hour. We therefore refuse to print a percentage rather than print a
+  // zero, and we say which quantity is at fault. (The map still carries structure: the
+  // shipped tier applies a ventilated-hour pattern floor, so it is not flat — earlier
+  // wording here said "uniform by construction", which described the locked tier and was
+  // stale for the tier actually served.)
   const hourLine = unresolved
-    ? `<span class="unres">This hour: not resolvable.</span> The estimated background `
-      + `(${fmtCI(B, f.bLo, f.bHi)} µg/m³) is at or above the modelled total, so the `
-      + `split cannot be made — the map is uniform by construction, not because `
-      + `emissions are absent. Most common April–December.`
+    ? `<span class="unres">This hour: the split cannot be computed.</span> The estimated `
+      + `background (${fmtCI(B, f.bLo, f.bHi)} µg/m³) is at or above the modelled total, `
+      + `which means <b>the background is over-estimated for this hour</b> — not that local `
+      + `emissions stopped. Local sources emit continuously, so the true local share here is `
+      + `above zero; the model cannot say by how much. The map still shows the local `
+      + `pattern. Most common April–December.`
     : `This hour: background ${fmtCI(B, f.bLo, f.bHi)} µg/m³ (${fmt(100 - pctLocal, 0)}%) · `
       + `local <b>${fmt(localBasin)}</b> µg/m³ (${fmt(pctLocal, 0)}%) — indicative; the `
       + `split is identified annually, not hourly.`;
