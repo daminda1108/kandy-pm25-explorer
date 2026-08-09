@@ -129,13 +129,25 @@ export class Store {
     const c50 = cf(inc50), o50 = k0(inc50);
     const c05 = cf(inc05), o05 = k0(inc05);
     const c95 = cf(inc95), o95 = k0(inc95);
+    // PHYSICAL FLOOR ON THE LOWER BOUND (2026-08-09). PM = B + local with local >= 0, so
+    // the total can never fall below the regional background — and therefore the 5th
+    // percentile of the total cannot fall below the LOW BRACKET of the background. The
+    // anchor's own 5th percentile carries no such constraint: T05 routinely sits far below
+    // B, and after the extension-tier interval widening it drove the displayed lower bound
+    // to ~0 on 61% of 2025 hours and 74% of 2026 hours, printing intervals like
+    // "12.2 [0.1-30.7]" beside a background of 7.8. That is not uncertainty, it is an
+    // inconsistency between two of our own estimates. Clamp at display (gotcha #65: the
+    // stored field stays raw; consumers apply the physical floor) using the background
+    // bracket the payload already ships.
+    const bLoH = s.B_lo[gi];
     let s50 = 0, s05 = 0, s95 = 0, pkI = 0;
     for (let i = 0; i < npx; i++) {
       const p = pmin + month.rows[off + i] / 65535 * span;
       P[i] = p;
       q50[i] = Math.max(B + c50 * p + o50, 0);
-      q05[i] = Math.max(B + c05 * p + o05, 0);
+      q05[i] = Math.max(B + c05 * p + o05, bLoH);
       q95[i] = Math.max(B + c95 * p + o95, 0);
+      if (q05[i] > q50[i]) q05[i] = q50[i];   // never cross the median
       s50 += q50[i]; s05 += q05[i]; s95 += q95[i];
       if (q50[i] > q50[pkI]) pkI = i;
     }
