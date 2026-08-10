@@ -7,8 +7,8 @@
 //      between assimilation tiers and moves a live point on the data-value curve.
 // All numbers come from the exported payloads (stations/showcase/forecast/datavalue).
 
-import { $, el, fmt, fitCanvas, ylorrd, clamp } from './util.js?v=1785161263';
-import { colourMode, paintField, paintColourbar } from './field.js?v=1785161263';
+import { $, el, fmt, fitCanvas, ylorrd, clamp } from './util.js?v=1786367590';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1786367590';
 
 export async function initShowcase({ store, city, mapview, stationCanvas, getState, exitToHour }) {
   const [stations, showcase, forecast, dv] = await Promise.all([
@@ -92,7 +92,7 @@ export async function initShowcase({ store, city, mapview, stationCanvas, getSta
     S.sel = best.id;
     const dpc = 100 * (best.model - best.measured) / best.measured;
     const role = best.role === 'anchor'
-      ? 'anchor — one of the 2 stations the sensor tier uses'
+      ? 'anchor: one of the 2 stations the sensor tier uses'
       : holdSet.has(best.id) ? 'held-out test station (never seen by the model)'
       : 'withheld station (scoring only)';
     $('#station-detail').innerHTML = `
@@ -181,10 +181,10 @@ export async function initShowcase({ store, city, mapview, stationCanvas, getSta
 
   // ── data-value slider (the centrepiece) ─────────────────────────────────────
   const DV_LABELS = {
-    0: 'zero ground data — what an unmonitored city like Kandy gets today',
+    0: 'zero ground data: what an unmonitored city like Kandy gets today',
     1: 'one arbitrary sensor is WORSE than none: an unrepresentative station drags the level',
     2: 'two sensors: placement matters more than count at this budget',
-    18: 'the full training network — what monitoring investment buys',
+    18: 'the full training network: what monitoring investment buys',
   };
 
   function dvN() { return dv.N[S.dvIdx]; }

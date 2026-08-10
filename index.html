@@ -7,7 +7,7 @@
   <meta name="description" content="Hourly 1 km PM2.5 fields for Kandy, Sri Lanka (2019–2026): heatmap, terrain wind, uncertainty, background/local split, weather conditions and documented haze events." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=1786361925" />
+  <link rel="stylesheet" href="css/style.css?v=1786367590" />
 </head>
 <body>
   <div id="loading">
@@ -58,27 +58,27 @@
     <p class="story-lede">Kandy sits in an enclosed valley about 500 m up, ringed by ridges
       that trap what the city emits and, for part of the year, hold haze that arrived from
       halfway across the Indian Ocean. Nobody has ever published a continuous record of its
-      fine particulate pollution. This is an attempt to reconstruct one — and to be precise
+      fine particulate pollution. This is an attempt to reconstruct one, and to be precise
       about which parts of it you can trust.</p>
     <div class="story-scroll" aria-hidden="true"><span></span>scroll</div>
   </div>
 
   <article class="story-step" data-step="1">
-    <p class="story-num">01 — The problem</p>
+    <p class="story-num">01 · The problem</p>
     <h3>You cannot validate a map of a place with no measurements.</h3>
     <p>Standard methods learn from a city's own monitors. Kandy has none that are public and
-      continuous, so there is nothing to learn from and — less obviously — nothing to check
+      continuous, so there is nothing to learn from and, less obviously, nothing to check
       the answer against. A confident-looking map of an unmonitored city is just a confident
       -looking map.</p>
   </article>
 
   <article class="story-step" data-step="2">
-    <p class="story-num">02 — The approach</p>
+    <p class="story-num">02 · The approach</p>
     <h3>Build the model from physics, then test it where measurements exist.</h3>
     <p>Every term depends only on data available anywhere on Earth: terrain, reanalysis
       weather, satellite columns, an open road map. So the identical model can be run for
-      cities that <em>do</em> have dense monitoring networks — deliberately starved of data
-      to match Kandy's situation — and scored against the monitors it never saw.</p>
+      cities that <em>do</em> have dense monitoring networks, deliberately starved of data
+      to match Kandy's situation, and scored against the monitors it never saw.</p>
     <div class="story-stat-row">
       <div class="story-stat"><b>10</b><span>analogue cities, 5 countries</span></div>
       <div class="story-stat"><b>0.94–1.00</b><span>seasonal cycle reproduced</span></div>
@@ -87,10 +87,10 @@
   </article>
 
   <article class="story-step" data-step="3">
-    <p class="story-num">03 — What the air is made of</p>
+    <p class="story-num">03 · What the air is made of</p>
     <h3>About half of Kandy's pollution is not Kandy's.</h3>
-    <p>The field separates a regional background — haze that arrives over the valley whatever
-      the city does — from the local increment on top of it. The split follows from a physical
+    <p>The field separates a regional background (the haze that arrives over the valley whatever
+      the city does) from the local increment on top of it. The split follows from a physical
       constraint rather than an assumption: local sources emit continuously, so the background
       can never equal the total. Imposing that gives roughly a <b>50/50</b> split, and it
       shifts through the year with the monsoon.</p>
@@ -101,7 +101,7 @@
   </article>
 
   <article class="story-step" data-step="4">
-    <p class="story-num">04 — Confidence, tiered</p>
+    <p class="story-num">04 · Confidence, tiered</p>
     <h3>Three kinds of year, and they are not equally trustworthy.</h3>
     <div class="story-tiers">
       <div class="tier-card t-anchor"><b>2019 – 2023</b>
@@ -116,12 +116,12 @@
   </article>
 
   <article class="story-step" data-step="5">
-    <p class="story-num">05 — The honest limit</p>
+    <p class="story-num">05 · The honest limit</p>
     <h3>The street-scale pattern is physics, not measurement.</h3>
     <p>Where the pollution sits <em>within</em> the valley is imposed from a terrain and
       traffic model, and its hour-to-hour sharpness has never been calibrated against
       anything local. Five independent tests say that pattern cannot be learned from public
-      data either. One monitor inside the basin would change that — and would settle the
+      data either. One monitor inside the basin would change that, and it would settle the
       background question too.</p>
     <a class="story-cta" href="#" data-goto="explore">Open the explorer →</a>
   </article>
@@ -148,7 +148,7 @@
   <main>
     <section class="map-col">
       <div id="map-title" class="map-title"></div>
-      <div id="cond-chip" class="cond-chip" title="What is driving this hour — thresholds on the method page"></div>
+      <div id="cond-chip" class="cond-chip" title="What is driving this hour; thresholds are on the method page"></div>
       <div id="mapstack" class="mapstack">
         <div id="mappan" class="mappan"></div>
         <div class="zoom-ctl">
@@ -243,6 +243,6 @@
     <div id="credits" class="credits"></div>
   </footer>
 
-  <script type="module" src="js/app.js?v=1786362269"></script>
+  <script type="module" src="js/app.js?v=1786367590"></script>
 </body>
 </html>

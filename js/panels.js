@@ -3,7 +3,7 @@
 // decomposition split, exposure/health, click-a-pixel point query.
 // Every numeric estimate carries its interval.
 
-import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1785161263';
+import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1786367590';
 
 let store, seekCb, curField, city;
 let LT = 5.5 * 3600;
@@ -38,11 +38,11 @@ function classifyConditions(f) {
   const calmShallow = f.wspd < 1.0 && f.blh < 400;
   const lh = Math.floor(((f.tsUTC + LT) % 86400) / 3600);
   const rush = (lh >= 6 && lh <= 9) || (lh >= 17 && lh <= 20);
-  if (rainy) return ['rain', 'Rain-washed', 'rain is scavenging particles — levels fall within hours'];
+  if (rainy) return ['rain', 'Rain-washed', 'rain is scavenging particles; levels fall within hours'];
   if (inc <= 0.5 && (f.wspd >= 1.0 || f.blh >= 700))
     return ['vent', 'Well-ventilated', 'deep mixing dilutes local emissions across the basin'];
   if (calmShallow && inc > 0.5)
-    return ['stag', 'Stagnant — accumulating', 'calm air under a shallow boundary layer traps emissions'];
+    return ['stag', 'Stagnant, accumulating', 'calm air under a shallow boundary layer traps emissions'];
   if (bShare > 0.75 && f.T > 15)
     return ['reg', 'Regional transport', 'most of this hour arrives with the regional background'];
   if (rush && inc > 0.5)
@@ -108,7 +108,7 @@ async function drawDiurnal(f) {
     $('#diurnal-note').innerHTML =
       `<span class="dot dot-band"></span> <b>90% range ${fmt(lo)} – ${fmt(hi)} µg/m³</b>`
       + ` (widened for out-of-regime use) · <span class="dot dot-line"></span> most likely`
-      + ` · <span class="fc-flag">forecast — no local verification</span>`;
+      + ` · <span class="fc-flag">forecast, no local verification</span>`;
     return;
   }
   const loc = pinnedPx != null
@@ -294,7 +294,7 @@ function drawWeather(f) {
     $('#weather-body').innerHTML =
       `<p class="hnote">Weather is not available for these hours. They sit between the
        end of the reconstructed record and the current analysis window, so only a
-       modelled PM<sub>2.5</sub> level survives — wind and temperature are withheld
+       modelled PM<sub>2.5</sub> level survives; wind and temperature are withheld
        rather than taken from a different source.</p>`;
     const wn0 = $('#weather-note'); if (wn0) wn0.textContent = '';
     return;
@@ -401,12 +401,12 @@ async function drawDecomp(f) {
   const hourLine = unresolved
     ? `<span class="unres">This hour: the split cannot be computed.</span> The estimated `
       + `background (${fmtCI(B, f.bLo, f.bHi)} µg/m³) is at or above the modelled total, `
-      + `which means <b>the background is over-estimated for this hour</b> — not that local `
+      + `which means <b>the background is over-estimated for this hour</b>, not that local `
       + `emissions stopped. Local sources emit continuously, so the true local share here is `
       + `above zero; the model cannot say by how much. The map still shows the local `
       + `pattern. Most common April–December.`
     : `This hour: background ${fmtCI(B, f.bLo, f.bHi)} µg/m³ (${fmt(100 - pctLocal, 0)}%) · `
-      + `local <b>${fmt(localBasin)}</b> µg/m³ (${fmt(pctLocal, 0)}%) — indicative; the `
+      + `local <b>${fmt(localBasin)}</b> µg/m³ (${fmt(pctLocal, 0)}%). Indicative; the `
       + `split is identified annually, not hourly.`;
   $('#decomp-note').innerHTML =
     (annLine ? annLine + '<br>' : '') + hourLine

@@ -24,7 +24,7 @@ export const CITIES = {
     // Kathmandu; Kandy parameters are physical priors (no local wind record).
     windCaveat: 'Wind uses a thermal valley-circulation model validated against '
       + 'weather stations in two analogue valleys (Medellín, Kathmandu). Kandy has '
-      + 'no wind record, so its parameters are physical priors — valley axis from '
+      + 'no wind record, so its parameters are physical priors: the valley axis from '
       + 'the terrain, strength scaled by relief. Indicative, not locally calibrated.',
     defaultEpisode: 'dec2022',
     // open on the most recent available hour (nearest to "now") rather than a fixed
@@ -60,7 +60,7 @@ export const CITIES = {
     rainLabel: 'Rain (basin average, this hour)',
     rainCaveat: 'Rainfall is a satellite estimate (GPM IMERG) averaged over the whole '
       + 'basin including the wet upper slopes, so it runs higher than a valley-floor '
-      + 'rain gauge — the floor is drier than the number shown.',
+      + 'rain gauge; the floor is drier than the number shown.',
     // updated after the B2 recalibration (2026-07-16): the old copy quoted the
     // pre-fix r≈0.2, which is no longer what the shipped wind does.
     windCaveat: 'Wind is recalibrated against airport observations (thermal valley '
@@ -72,7 +72,7 @@ export const CITIES = {
     captionName: 'Medellín PM2.5 (proving ground)',
     regime: 'Honest framing: Medellín is local-emission-dominated (f≈0.6–0.85); '
       + 'Kandy is regional-episodic (f≈0.25). This proving ground demonstrates the '
-      + 'machinery, the spatial skill and the value of monitoring data — not that '
+      + 'machinery, the spatial skill and the value of monitoring data, not that '
       + 'Kandy’s transboundary episodes are equally predictable.',
   },
 };

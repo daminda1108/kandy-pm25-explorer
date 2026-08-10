@@ -1,17 +1,17 @@
 // app.js — PM2.5 Explorer orchestrator (city-aware: Kandy default, Medellín
 // proving ground). All per-city behaviour comes from cities.js.
 
-import { $, el, fmt, fmtCI, clamp } from './util.js?v=1785161263';
-import { activeCity } from './cities.js?v=1785161263';
-import { Store, STORE_FCST } from './store.js?v=1785161263';
-import { colourMode, paintField, paintColourbar } from './field.js?v=1785161263';
-import { WindLayer, windWords } from './wind.js?v=1785161263';
-import { Timeline } from './timeline.js?v=1785161263';
-import { Overlay } from './overlay.js?v=1785161263';
-import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1785161263';
-import { initShowcase } from './showcase.js?v=1785161263';
-import { MapView } from './mapview.js?v=1785161263';
-import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1785161263';
+import { $, el, fmt, fmtCI, clamp } from './util.js?v=1786367590';
+import { activeCity } from './cities.js?v=1786367590';
+import { Store, STORE_FCST } from './store.js?v=1786367590';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1786367590';
+import { WindLayer, windWords } from './wind.js?v=1786367590';
+import { Timeline } from './timeline.js?v=1786367590';
+import { Overlay } from './overlay.js?v=1786367590';
+import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1786367590';
+import { initShowcase } from './showcase.js?v=1786367590';
+import { MapView } from './mapview.js?v=1786367590';
+import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1786367590';
 
 const MAP = 840;                    // internal map canvas resolution (square)
 const CITY = activeCity();
@@ -435,22 +435,22 @@ function forecastBanner(kind) {
   const fc = store.forecast || {};
   const ref = Object.values(fc.refYears || {})[0];
   const lead = kind === 'recent'
-    ? 'DEMONSTRATION — recent hours, modelled. This is past the end of the '
+    ? 'DEMONSTRATION. Recent hours, modelled. This is past the end of the '
       + 'reconstructed record, so the level comes from the same Kandy model driven by '
       + "NASA GEOS-CF's near-real-time analysis rather than reanalysis. It is not a "
       + 'forecast, and it is still not a measurement.'
     : kind === 'level_only'
-    ? 'DEMONSTRATION — level only. These hours fall between the end of the '
+    ? 'DEMONSTRATION. Level only. These hours fall between the end of the '
       + 'reconstructed record and the current analysis window, so only a modelled '
       + 'level survives for them: wind and weather are not available and are hidden '
       + 'rather than filled in from another source.'
-    : 'DEMONSTRATION — a forecast, not a measurement. The basin-mean level comes '
+    : 'DEMONSTRATION. A forecast, not a measurement. The basin-mean level comes '
       + 'from the frozen Kandy model driven by the NASA GEOS-CF forecast.';
   return lead + ' The street-scale pattern is the typical pattern for this month and '
     + 'hour' + (ref ? ` (from ${ref})` : '') + ', not a predicted one. Kandy has no '
     + 'public monitoring station, so nothing here is checked against local '
     + `measurements. The 90% range is widened ${fc.ood_k || 1.35}× because Kandy is `
-    + 'outside the regime this method was validated in — read the range, not the middle.';
+    + 'outside the regime this method was validated in. Read the range, not the middle.';
 }
 
 // "What stands behind this" — the borrowed evidence, stated as borrowed.
@@ -471,7 +471,7 @@ function buildForecastCard() {
     : `<p class="note">Medellín's live scoreboard is running but has not yet matured `
       + `enough observed hours to score; the held-out backtest above is the evidence.</p>`;
   box.innerHTML =
-    `<summary>What stands behind this forecast — and what does not</summary>`
+    `<summary>What stands behind this forecast, and what does not</summary>`
     + `<div class="fe-body">`
     + `<p><b>No part of this forecast has been verified in Kandy.</b> There is no public `
     + `in-basin monitoring station to score it against, so it is shown as a `

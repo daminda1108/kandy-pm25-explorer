@@ -6,7 +6,7 @@
   <title>How it works · Kandy PM2.5 Explorer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=1785161263" />
+  <link rel="stylesheet" href="css/style.css?v=1786367590" />
   <style>
     .doc { max-width: 820px; margin: 0 auto; padding: 10px 22px 60px; line-height: 1.65; }
     .doc h2 { font-size: 22px; margin: 34px 0 10px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
@@ -48,7 +48,7 @@
     <p><b>The Kandy PM<sub>2.5</sub> Explorer reconstructs a 1 km, hourly fine-particulate
     field over the Kandy valley for 2019–2026.</b> Kandy's monitoring record is sparse, so
     the model combines satellite products, reanalysis meteorology, terrain physics and
-    ground measurements from comparable cities — a transfer-validation approach explained
+    ground measurements from comparable cities, a transfer-validation approach explained
     below. The satellite-anchored years (2019–2023) carry the headline; 2024–2026 are a
     labelled extension. This page describes what each part of the map is based on and how
     much weight it can carry.</p>
@@ -113,20 +113,20 @@
     on cities that <em>do</em> have dense networks: we build the map as if the city had
     almost no ground data, then score it against the monitors that were deliberately
     withheld from the model. Reconstructing a monitored city the model has never seen is
-    evidence that it is doing something real when applied to Kandy — this is the
+    evidence that it is doing something real when applied to Kandy, this is the
     transfer-validation logic that underpins the whole approach.</p>
-    <p>The flagship proving ground is <b>Medellín</b>, Colombia — a tropical Andean valley
+    <p>The flagship proving ground is <b>Medellín</b>, Colombia, a tropical Andean valley
     with a complete PM<sub>2.5</sub> record and a Kandy-analogue regime. Run blind against
     its withheld network, the identical engine reproduces the seasonal cycle (r ≈ 0.99), the
     daily cycle (r ≈ 0.89) and the station-by-station spatial ranking (ρ ≈ 0.78, the best in
     the panel), with the level landing within about 6%. The same machinery has been tested
     across a nine-city panel spanning five countries and three continents. Improvements are
     proven on these monitored cities first, and only the ones that hold up across several of
-    them are ported to Kandy — the wind recalibration and the post-2023 level extension used
+    them are ported to Kandy, the wind recalibration and the post-2023 level extension used
     in this explorer were both validated on Medellín before being brought here.</p>
     <div class="proving">
       <div>
-        <b>Medellín — the proving ground</b>
+        <b>Medellín, the proving ground</b>
         <p>See the identical engine run against a city that <em>has</em> monitors: build the
         map from little or no ground data, then reveal the withheld network and watch it be
         scored, including a live self-checking day-ahead forecast.</p>
@@ -137,11 +137,11 @@
 
     <h2>Extending past the satellite anchor (2024–2026)</h2>
     <p>The annual level for 2019–2023 is anchored to a satellite product whose current release
-    ends in 2023. A simple chemistry-model scaling proved unreliable for carrying it forward —
+    ends in 2023. A simple chemistry-model scaling proved unreliable for carrying it forward,
     it misses the emission anomalies of 2021 (pandemic) and 2022 (fuel crisis). So for 2024
     onward we replaced the anchor with a model trained on meteorology and a global chemistry
-    forecast: the same driver-anchored approach we validated on Medellín, where — trained only
-    on data through 2023 — it reproduced the 2024 annual level to within a few percent of
+    forecast: the same driver-anchored approach we validated on Medellín, where (trained only
+    on data through 2023) it reproduced the 2024 annual level to within a few percent of
     monitors it had never seen. The 2024–2026 years are shown as a separate, clearly labelled
     <em>extension</em> tier: the level and timing are modelled, the street-scale pattern is the
     2019–2023 climatology, and the level carries a wider uncertainty. The locked
@@ -151,7 +151,7 @@
     statistical model behind it systematically <em>under-produced high-pollution hours</em>:
     before August 2026 it essentially could not generate an episode, reporting under one hour
     a year above 55&nbsp;µg/m³ where the anchored years contain roughly eighty. A correction
-    fitted on the anchored years — and checked by holding each of them out in turn — restores
+    fitted on the anchored years (and checked by holding each of them out in turn) restores
     the frequency and size of episodes to within a few percent of the truth. It fixes
     <em>how often</em> episodes of a given size occur. It does <em>not</em> establish that they
     fall on the right hours: the model's ranking of which hours are dirty is unchanged by the
@@ -159,14 +159,14 @@
     reading.</p>
 
     <p>A second caveat applies to every year, not just the extension. The hour-to-hour
-    <em>sharpness</em> of the map — how much dirtier the traffic core looks than the ridges at
-    a given moment — is set partly by a bounded constant that has never been calibrated
+    <em>sharpness</em> of the map (how much dirtier the traffic core looks than the ridges at
+    a given moment) is set partly by a bounded constant that has never been calibrated
     against measurements. On calm nights and at rush hour, when that bound is reached, the map
     can show a core several times the basin average. The direction is right and the annual
     average contrast (about 1.2×) is the figure we would defend; a single dramatic hour is
     not.</p>
 
-    <h2>The five-day forecast — a demonstration, not a checked product</h2>
+    <h2>The five-day forecast, a demonstration, not a checked product</h2>
     <p>Dates beyond the reconstructed record are selectable in the date picker and marked
     with a <span class="fc-flag">▸</span>. They come from the same frozen Kandy model, driven
     by NASA's GEOS-CF chemistry <em>forecast</em> instead of reanalysis. Two things about
@@ -176,7 +176,7 @@
     usual claims of forecast accuracy can be made here. What can be shown is the method's
     performance where a network does exist: run at Medellín with the anchor trained only on
     2019–2022 and scored on 2023 against 15 withheld stations, it reaches an RMSE of 5.71
-    µg/m³ against 6.49 for 24-hour persistence — a skill of +0.120 — and retains the seasonal
+    µg/m³ against 6.49 for 24-hour persistence (a skill of +0.120) and retains the seasonal
     (r 0.974) and daily (r 0.965) shape. That is a Medellín number in a locally-dominated
     pollution regime; Kandy's is regional and transboundary, so it bounds the method, not this
     city's forecast. An earlier version of that backtest reported roughly double the skill; it
@@ -187,14 +187,14 @@
     it is displayed. The reason is measurable: the version of this model that uses no local
     sensor at all produces a nominal 90% interval that in fact contains only 70.7% of the local
     record over 1,215 days, because Kandy sits outside the regime the method was validated in.
-    A 1.35× inflation restores 90% coverage there, and the same factor is applied here — a
+    A 1.35× inflation restores 90% coverage there, and the same factor is applied here, a
     disclosed transfer, since a daily record is the only place that deficit can be measured.</p>
     <p>Finally, only the basin-wide <em>level</em> is forecast. There is no forecast of the
     street-scale pattern, so the map for a future hour uses the typical pattern for that month
     and hour from the reconstructed record. The shape of the map is climatology; the level on
     top of it is the forecast.</p>
 
-    <h2 id="physics-status">What kind of model this is — and what it is not</h2>
+    <h2 id="physics-status">What kind of model this is, and what it is not</h2>
     <p>It is worth being exact about the physics, because the model contains a genuine
     dispersion solver and it would be easy to over-read what that buys.</p>
     <p><b>There is real transport physics inside.</b> The spatial pattern is generated by a
@@ -216,19 +216,19 @@
       <li>The <b>level is imposed, not conserved</b>. The basin mean is pinned to the
       temporal anchor by construction. Mass conservation in the physical sense is replaced
       by that statistical constraint.</li>
-      <li>The overall framework — a regional background plus a locally structured increment
-      — is a <b>source-apportionment decomposition</b>, not a chemical transport model.</li>
+      <li>The overall framework (a regional background plus a locally structured increment
+     ) is a <b>source-apportionment decomposition</b>, not a chemical transport model.</li>
     </ul>
     <p>So: transport physics generates the pattern; the decomposition places it; the anchor
-    sets the level. That is a deliberate design — a full transport model would need a local
-    emission inventory and local measurements to constrain it, and Kandy has neither — but
+    sets the level. That is a deliberate design, a full transport model would need a local
+    emission inventory and local measurements to constrain it, and Kandy has neither, but
     it means the hourly spatial <em>amplitude</em> is a physically-motivated scenario rather
     than a solved quantity, and we report the annual contrast (about 1.2× core to edge) as
     the figure we would defend.</p>
 
     <h2 id="split">When the background and local split cannot be made</h2>
-    <p>The map separates a regional background — pollution that arrives over the valley
-    regardless of what happens in it — from the local increment on top. That separation
+    <p>The map separates a regional background (pollution that arrives over the valley
+    regardless of what happens in it) from the local increment on top. That separation
     fails on a substantial minority of hours, and the site now says so rather than
     quietly showing a flat map.</p>
     <p>The reason is a resolution mismatch. The total is estimated hourly and swings
@@ -236,10 +236,10 @@
     On well-ventilated hours the total falls below the day's estimated background, which
     leaves no increment to distribute across the map. This happens in about
     <b>28% of all hours</b>, concentrated between April and December when the basin is
-    cleanest — roughly 2–13% of hours in January–March, rising to 27–48% from April.
+    cleanest, roughly 2–13% of hours in January–March, rising to 27–48% from April.
     <b>What this means, stated correctly.</b> It does <em>not</em> mean local emissions
     stopped. Traffic, cooking and waste burning continue every hour of every day, so at any
-    emitting location the local increment is strictly positive at all times — including on
+    emitting location the local increment is strictly positive at all times, including on
     rainy days, when emissions carry on and only the removal changes. A background that
     exceeds the total is therefore not a physical state; it is a sign that
     <b>the background estimate is too high for that hour</b>. The honest reading is that the
@@ -252,16 +252,16 @@
     rebuilding it from local dilution and washout physics; adding the diurnal response it
     lacks; setting its level from an island-wide reference network; and estimating it as
     the persistent lower envelope of the total. Each one was rejected by a measurement.
-    The obstruction is that four requirements — a background with its own dynamics, a
+    The obstruction is that four requirements, a background with its own dynamics, a
     background that never exceeds the total, a regional-versus-local split inside the
     range the published literature supports, and the observed wet-versus-dry seasonal
-    contrast — cannot all hold at once with the data available.</p>
+    contrast, cannot all hold at once with the data available.</p>
     <p>What would resolve it is not a better model. About 2% of hours put the modelled
     total below the regional floor measured by a national network, and that network's
     stations are coastal towns while Kandy is inland and elevated. A single monitor in
     the basin, or upwind of it, would establish which of the two is wrong and remove the
-    ambiguity. Until then the annual and seasonal figures — which do not depend on this
-    split — stand, and the hourly split is reported only where it can be made.</p>
+    ambiguity. Until then the annual and seasonal figures (which do not depend on this
+    split) stand, and the hourly split is reported only where it can be made.</p>
 
     <h2>Uncertainty</h2>
     <p>Every field carries a calibrated 90% interval. The map has an upper-bound toggle,
@@ -313,7 +313,7 @@
   </div>
 
   <script type="module">
-    import { getJSON } from './js/util.js?v=1785161263';
+    import { getJSON } from './js/util.js?v=1786367590';
     const meta = await getJSON('data/meta.json');
     const ul = document.getElementById('doc-credits');
     for (const [what, who] of meta.credits) {
