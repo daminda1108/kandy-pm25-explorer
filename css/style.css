@@ -615,12 +615,17 @@ select, button { transition: border-color var(--dur) var(--ease),
 .story-cta:hover { background: color-mix(in srgb, var(--accent) 14%, transparent);
   text-decoration: none; }
 
-/* motion: one reveal per element, disabled under the OS preference */
-.story-hero, .story-step { opacity: 0; transform: translateY(18px);
+/* Motion: one reveal per element. The hidden state is scoped to .js-reveal, which JS
+   adds only when it is about to observe — so the DEFAULT is visible and a JS failure
+   degrades to unanimated content rather than a blank page. */
+.story.js-reveal .story-hero, .story.js-reveal .story-step {
+  opacity: 0; transform: translateY(18px);
   transition: opacity .7s var(--ease), transform .7s var(--ease); }
-.story-hero.in, .story-step.in { opacity: 1; transform: none; }
+.story.js-reveal .story-hero.in, .story.js-reveal .story-step.in {
+  opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) {
-  .story-hero, .story-step { opacity: 1; transform: none; transition: none; }
+  .story.js-reveal .story-hero, .story.js-reveal .story-step {
+    opacity: 1; transform: none; transition: none; }
 }
 @media (max-width: 720px) {
   .story { padding: 0 18px 80px; }

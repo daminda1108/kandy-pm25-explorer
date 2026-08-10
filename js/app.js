@@ -203,7 +203,10 @@ function setSurface(name, { push = true } = {}) {
     for (const n of document.querySelectorAll(sel)) n.hidden = (s === 'story');
   if (s === 'story') {
     window.scrollTo({ top: 0, behavior: 'auto' });
-    revealStory();
+    // Two frames: the element was hidden in this tick, so it has no layout yet and an
+    // IntersectionObserver attached now records everything as not-intersecting and may
+    // never re-deliver. Wait for layout to settle before observing.
+    requestAnimationFrame(() => requestAnimationFrame(revealStory));
   }
   for (const b of document.querySelectorAll('.surf-btn')) {
     const on = b.dataset.surface === s;
@@ -221,10 +224,21 @@ function setSurface(name, { push = true } = {}) {
 // handler so it costs nothing when idle, and it degrades to "everything visible" when
 // the OS asks for reduced motion.
 function revealStory() {
+  const story = document.getElementById('story');
   const steps = document.querySelectorAll('#story .story-step, #story .story-hero');
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    steps.forEach(e => e.classList.add('in')); return;
-  }
+  if (!story || !steps.length) return;
+  // Opt IN to the hidden-until-revealed state only once JS is definitely running and
+  // about to observe. The CSS therefore defaults to VISIBLE: if any of this fails, the
+  // reader gets unanimated content rather than a blank page. An invisible-content bug is
+  // the worst failure mode a narrative surface can have, and this one actually happened.
+  story.classList.add('js-reveal');
+  const showAll = () => steps.forEach(e => e.classList.add('in'));
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { showAll(); return; }
+  // Fail-open safety net: if nothing has been revealed shortly after we start observing,
+  // abandon the effect and show everything.
+  setTimeout(() => {
+    if (![...steps].some(e => e.classList.contains('in'))) showAll();
+  }, 600);
   if (revealStory._io) { steps.forEach(e => revealStory._io.observe(e)); return; }
   revealStory._io = new IntersectionObserver((entries) => {
     for (const en of entries) if (en.isIntersecting) {
