@@ -203,10 +203,13 @@ function setSurface(name, { push = true } = {}) {
     for (const n of document.querySelectorAll(sel)) n.hidden = (s === 'story');
   if (s === 'story') {
     window.scrollTo({ top: 0, behavior: 'auto' });
-    // Two frames: the element was hidden in this tick, so it has no layout yet and an
+    // The element was hidden in this tick, so it has no layout yet: an
     // IntersectionObserver attached now records everything as not-intersecting and may
-    // never re-deliver. Wait for layout to settle before observing.
-    requestAnimationFrame(() => requestAnimationFrame(revealStory));
+    // never re-deliver. Defer until layout has settled. setTimeout rather than
+    // requestAnimationFrame because rAF does not run at all while the tab is not
+    // compositing (background tab, hidden pane), which would leave the effect
+    // uninitialised; a timer fires either way.
+    setTimeout(revealStory, 60);
   }
   for (const b of document.querySelectorAll('.surf-btn')) {
     const on = b.dataset.surface === s;
