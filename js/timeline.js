@@ -2,7 +2,7 @@
 // (basin-mean PM). Clicking/dragging selects an hour. Month separators + year
 // labels; crisp at devicePixelRatio.
 
-import { makeLUT, clamp, fitCanvas } from './util.js?v=1786367590';
+import { makeLUT, clamp, fitCanvas } from './util.js?v=1786368617';
 
 const LUT = makeLUT('ylorrd', 1.1);
 const STRIP_LO = 8, STRIP_HI = 45;   // fixed strip colour range across all years
@@ -34,7 +34,11 @@ export class Timeline {
   _fit() {
     // zero the element first so the parent reports its own width, not the canvas's
     this.canvas.style.width = '0px';
-    const cssW = this.canvas.parentElement?.clientWidth || 1100;
+    // clamp to the viewport as well as the parent: if the parent has itself been
+    // stretched by a previously latched canvas width, its clientWidth is not a
+    // safe target and the element would never come back down.
+    const cssW = Math.min(this.canvas.parentElement?.clientWidth || 1100,
+                          document.documentElement.clientWidth - 24);
     this.canvas.style.width = '100%';
     const r = fitCanvas(this.canvas, cssW, 72);
     this.ctx = r.ctx; this.W = r.w; this.H = r.h;

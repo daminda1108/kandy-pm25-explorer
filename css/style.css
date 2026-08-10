@@ -633,3 +633,25 @@ select, button { transition: border-color var(--dur) var(--ease),
   .story-stat-row { gap: 20px; }
   .story-split { flex-direction: column; }
 }
+
+
+/* ── mobile hardening (2026-08-10) ─────────────────────────────────────────
+   Two defects found by auditing the live site at 375px.
+
+   1. fitCanvas() writes an explicit pixel width onto every canvas. If a canvas
+      is ever measured while its container is wide, that width latches and the
+      element can no longer shrink, so the page overflows horizontally by the
+      difference (measured: 904px after a viewport change). max-width:100% makes
+      that impossible in CSS, independently of whether the resize handler fires.
+   2. 26 of 30 controls were under the 44px touch minimum (WCAG 2.5.5). */
+canvas { max-width: 100%; }
+.timeline-wrap, .mapstack, .rail, main { overflow-x: clip; }
+
+@media (pointer: coarse), (max-width: 760px) {
+  .dt-sel, .tl-btn, #play, .surf-btn, .jump-btn, .zoom-btn, button, select {
+    min-height: 44px;
+  }
+  .dt-sel, select { font-size: 16px; }   /* iOS zooms the page below 16px */
+  .tl-btn, .zoom-btn { min-width: 44px; }
+  .surf-btn { padding-left: 14px; padding-right: 14px; }
+}
