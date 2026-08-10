@@ -449,3 +449,102 @@ main.view-insights .panel[data-surface="explore"] { display: none; }
   .surface-nav { padding: 0 var(--sp-4); }
   .surf-hint { display: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MODERNIST REFRESH + RESPONSIVE HARDENING (2026-08-10)
+   Audit findings this addresses, measured in-browser:
+     · timeline canvas pinned its own container open -> 904px horizontal
+       overflow on a 375px viewport after any resize (JS fix in timeline.js;
+       the rule below stops the element exceeding its box in the first place)
+     · 26 of 30 controls were 33-39px tall, under the 44px touch minimum
+     · residual 14px overflow on a fresh mobile load
+   Design intent: modernist — a strict type scale, generous negative space,
+   flat surfaces separated by hairlines rather than shadows, one accent, and
+   motion only where it communicates a state change.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* tighter, more deliberate scale (major third) */
+  --fs-xs: 11px; --fs-sm: 12px; --fs-base: 13.5px; --fs-md: 15px;
+  --fs-lg: 18px; --fs-xl: 23px; --fs-2xl: 29px; --fs-3xl: 37px;
+  --tracking-tight: -0.018em;
+  --tracking-wide: 0.10em;
+  /* flatter, cooler surfaces; hairlines carry the structure */
+  --hair: rgba(148, 178, 218, 0.13);
+  --hair-strong: rgba(148, 178, 218, 0.22);
+  --surface: rgba(255, 255, 255, 0.022);
+  --surface-2: rgba(255, 255, 255, 0.045);
+  --radius: 10px; --radius-s: 7px;
+  /* tier identity — used by the selector, the strip and the badges */
+  --tier-anchor: #56c8ff;
+  --tier-ext: #f0a35a;
+  --tier-fcst: #c58af9;
+}
+
+/* ── type ────────────────────────────────────────────────────────────────── */
+h1 { letter-spacing: var(--tracking-tight); }
+.dt-label, .rail h3, .sec-label, .wl-word {
+  text-transform: uppercase; letter-spacing: var(--tracking-wide);
+  font-size: var(--fs-xs); font-weight: 600; color: var(--ink-faint);
+  font-family: Inter, system-ui, sans-serif;
+}
+
+/* ── surfaces: hairline-defined, not shadow-stacked ──────────────────────── */
+.card, .rail > section, .panel {
+  background: var(--surface); border: 1px solid var(--hair);
+  border-radius: var(--radius); box-shadow: none;
+}
+.card:hover, .rail > section:hover { border-color: var(--hair-strong); }
+
+/* ── the timeline canvas must never exceed its container ─────────────────── */
+#timeline { display: block; width: 100%; max-width: 100%; }
+.timeline-wrap { overflow: hidden; }
+
+/* ── evidence tiers, made visible in the selector ─────────────────────────── */
+#sel-year optgroup {
+  font-family: Inter, system-ui, sans-serif; font-style: normal;
+  font-size: var(--fs-xs); text-transform: uppercase;
+  letter-spacing: var(--tracking-wide); color: var(--ink-faint);
+  background: var(--bg2); padding: 4px 0;
+}
+#sel-year option { font-style: normal; color: var(--ink); }
+
+/* ── touch targets: 44px minimum on any coarse pointer (WCAG 2.5.5) ──────── */
+@media (pointer: coarse) {
+  select, button, .transport button, .dt-jumps button {
+    min-height: 44px; min-width: 44px; font-size: var(--fs-base);
+  }
+  .datetime-bar select { padding-block: 10px; }
+  .dt-jumps button { padding: 0 14px; }
+}
+
+/* ── responsive: a real mobile layout, not a squeezed desktop one ─────────── */
+@media (max-width: 720px) {
+  html, body { overflow-x: hidden; }
+  header { padding: 14px 16px 8px; }
+  main { padding: 12px 16px; gap: 16px; }
+  /* the date/time bar becomes a 2x2 grid of full-width controls */
+  .datetime-bar {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    align-items: stretch; padding: 12px 16px;
+  }
+  .datetime-bar select { width: 100%; }
+  .dt-label { grid-column: 1 / -1; margin-bottom: -2px; }
+  .dt-hint, .spacer { display: none; }
+  .dt-jumps { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+  .transport { grid-column: 1 / -1; display: flex; gap: 8px; }
+  .transport button { flex: 1 1 0; }
+  .mapstack { max-width: 100%; aspect-ratio: 1 / 1; }
+  .map-foot, .controls { max-width: 100%; }
+  /* stack the legend/controls rather than letting them scroll sideways */
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; }
+}
+@media (max-width: 420px) {
+  h1 { font-size: var(--fs-lg); }
+  .datetime-bar { grid-template-columns: 1fr 1fr; }
+}
+
+/* ── motion: only on state change, and never against the OS preference ───── */
+.card, .rail > section { transition: border-color var(--dur) var(--ease); }
+select, button { transition: border-color var(--dur) var(--ease),
+                             background var(--dur) var(--ease); }

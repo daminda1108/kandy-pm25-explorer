@@ -84,13 +84,20 @@ async function boot() {
   wireSurfaces();
   initPanels(store, (y, gi) => seek(y, gi), CITY);
 
-  // preload all years' scalars for the strip (small, gzip over the wire)
+  // Load the CURRENT year first and paint; the rest stream in behind it. Eagerly
+  // fetching every year cost ~1.9 MB of scalars before first paint (5 years x ~370 KB)
+  // when only one is ever displayed. First paint no longer waits on them.
   loadStep('years');
-  for (const y of store.meta.years) {
-    const s = await store.getScalars(y);
-    timeline.addYear(y, s);
-  }
+  const yNow = store.meta.years[store.meta.years.length - 1];
+  timeline.addYear(yNow, await store.getScalars(yNow));
   loadStep('years', true);
+  (async () => {
+    for (const y of store.meta.years) {
+      if (y === yNow) continue;
+      try { timeline.addYear(y, await store.getScalars(y)); timeline.draw(); }
+      catch (e) { console.warn('scalars', y, e); }
+    }
+  })();
   loadStep('field');
 
   // forecast tier (demonstration): registers the live payload as a synthetic year,
@@ -515,9 +522,26 @@ function refreshDatetimeOptions({ keepSelection = true } = {}) {
   const wantD = keepSelection ? +dSel.value : NaN;
   const wantH = keepSelection ? +hSel.value : NaN;
 
+  // Group the years by EVIDENCE TIER rather than listing them flat. The three tiers are
+  // built from different information and carry different confidence, and the selector is
+  // where a reader first meets that distinction: anchored years are pinned to a satellite
+  // level product; extension years are modelled from drivers because that product ends in
+  // 2023; forecast hours are a labelled demonstration. Grouping makes the epistemic
+  // structure of the product visible instead of leaving it to a footnote.
   ySel.innerHTML = '';
-  for (const y of AVAIL.years)
-    ySel.append(opt(y, yearFcst(y) ? `${y} ▸` : String(y), { fcst: yearFcst(y) }));
+  const extYears = (store.meta.tiers || {}).extension || [];
+  const groups = [
+    ['Measured anchor · 2019–2023', y => !yearFcst(y) && !extYears.includes(y)],
+    ['Modelled extension · 2024–now', y => !yearFcst(y) && extYears.includes(y)],
+    ['Forecast · demonstration', y => yearFcst(y)],
+  ];
+  for (const [label, test] of groups) {
+    const ys = AVAIL.years.filter(test);
+    if (!ys.length) continue;
+    const g = el('optgroup'); g.label = label;
+    for (const y of ys) g.append(opt(y, yearFcst(y) ? `${y} ▸` : String(y), { fcst: yearFcst(y) }));
+    ySel.append(g);
+  }
   ySel.value = AVAIL.years.includes(wantY) ? wantY : AVAIL.years[AVAIL.years.length - 1];
   const Y = +ySel.value;
 

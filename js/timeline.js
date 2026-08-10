@@ -17,6 +17,14 @@ export class Timeline {
     this.hoursByYear = new Map();    // year -> hours_utc array
     this.cursor = { year: years[0], gi: 0 };
     this._fit();
+    // The canvas carries an explicit pixel width. If it is allowed to exceed its
+    // container it PINS the container open, so parentElement.clientWidth never shrinks
+    // and the canvas can never come back down — the page then overflows horizontally by
+    // ~900px on a phone after any viewport change. Collapse the element before measuring,
+    // and observe the PARENT rather than the window so it also tracks layout changes that
+    // do not resize the window (panel opens, orientation, zoom).
+    const ro = new ResizeObserver(() => { this._fit(); this.draw(); });
+    if (this.canvas.parentElement) ro.observe(this.canvas.parentElement);
     window.addEventListener('resize', () => { this._fit(); this.draw(); });
     canvas.addEventListener('pointerdown', (e) => { this._drag = true; this._pick(e); });
     canvas.addEventListener('pointermove', (e) => { if (this._drag) this._pick(e); });
@@ -24,7 +32,10 @@ export class Timeline {
   }
 
   _fit() {
+    // zero the element first so the parent reports its own width, not the canvas's
+    this.canvas.style.width = '0px';
     const cssW = this.canvas.parentElement?.clientWidth || 1100;
+    this.canvas.style.width = '100%';
     const r = fitCanvas(this.canvas, cssW, 72);
     this.ctx = r.ctx; this.W = r.w; this.H = r.h;
   }
