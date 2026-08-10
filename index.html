@@ -7,7 +7,7 @@
   <meta name="description" content="Hourly 1 km PM2.5 fields for Kandy, Sri Lanka (2019–2026): heatmap, terrain wind, uncertainty, background/local split, weather conditions and documented haze events." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=1786331166" />
+  <link rel="stylesheet" href="css/style.css?v=1786332471" />
 </head>
 <body>
   <div id="loading">
@@ -38,10 +38,94 @@
   </header>
 
   <nav class="surface-nav" role="tablist" aria-label="Views">
+    <button class="surf-btn" data-surface="story" role="tab" aria-selected="false">Story</button>
     <button class="surf-btn active" data-surface="explore" role="tab" aria-selected="true">Explore</button>
     <button class="surf-btn" data-surface="insights" role="tab" aria-selected="false">Insights</button>
     <span class="surf-hint" id="surf-hint">the map, hour by hour</span>
   </nav>
+
+
+<!-- ══ NARRATIVE SURFACE ══════════════════════════════════════════════════
+     A scroll-led introduction for a first-time visitor. It exists because the
+     explorer answers "what was the air like at 3pm" but never "why does this
+     city need modelling at all, and how much of this should you believe".
+     Every figure here is linked to the evidence that produced it. -->
+<section id="story" class="story" hidden>
+
+  <div class="story-hero">
+    <p class="story-eyebrow">Central Province · Sri Lanka</p>
+    <h2 class="story-title">A city of 400,000 people<br>with no air quality monitor.</h2>
+    <p class="story-lede">Kandy sits in an enclosed valley about 500 m up, ringed by ridges
+      that trap what the city emits and, for part of the year, hold haze that arrived from
+      halfway across the Indian Ocean. Nobody has ever published a continuous record of its
+      fine particulate pollution. This is an attempt to reconstruct one — and to be precise
+      about which parts of it you can trust.</p>
+    <div class="story-scroll" aria-hidden="true"><span></span>scroll</div>
+  </div>
+
+  <article class="story-step" data-step="1">
+    <p class="story-num">01 — The problem</p>
+    <h3>You cannot validate a map of a place with no measurements.</h3>
+    <p>Standard methods learn from a city's own monitors. Kandy has none that are public and
+      continuous, so there is nothing to learn from and — less obviously — nothing to check
+      the answer against. A confident-looking map of an unmonitored city is just a confident
+      -looking map.</p>
+  </article>
+
+  <article class="story-step" data-step="2">
+    <p class="story-num">02 — The approach</p>
+    <h3>Build the model from physics, then test it where measurements exist.</h3>
+    <p>Every term depends only on data available anywhere on Earth: terrain, reanalysis
+      weather, satellite columns, an open road map. So the identical model can be run for
+      cities that <em>do</em> have dense monitoring networks — deliberately starved of data
+      to match Kandy's situation — and scored against the monitors it never saw.</p>
+    <div class="story-stat-row">
+      <div class="story-stat"><b>10</b><span>analogue cities, 5 countries</span></div>
+      <div class="story-stat"><b>0.94–1.00</b><span>seasonal cycle reproduced</span></div>
+      <div class="story-stat"><b>6 of 9</b><span>cities with resolvable spatial skill</span></div>
+    </div>
+  </article>
+
+  <article class="story-step" data-step="3">
+    <p class="story-num">03 — What the air is made of</p>
+    <h3>About half of Kandy's pollution is not Kandy's.</h3>
+    <p>The field separates a regional background — haze that arrives over the valley whatever
+      the city does — from the local increment on top of it. The split follows from a physical
+      constraint rather than an assumption: local sources emit continuously, so the background
+      can never equal the total. Imposing that gives roughly a <b>50/50</b> split, and it
+      shifts through the year with the monsoon.</p>
+    <div class="story-split" role="img" aria-label="About 48 percent local, 52 percent regional background">
+      <div class="sp-local"><span>~48%</span><small>local · actionable in the city</small></div>
+      <div class="sp-reg"><span>~52%</span><small>regional · needs coordination beyond it</small></div>
+    </div>
+  </article>
+
+  <article class="story-step" data-step="4">
+    <p class="story-num">04 — Confidence, tiered</p>
+    <h3>Three kinds of year, and they are not equally trustworthy.</h3>
+    <div class="story-tiers">
+      <div class="tier-card t-anchor"><b>2019 – 2023</b>
+        <span>Level pinned to a satellite product. The years the method was scored on.</span></div>
+      <div class="tier-card t-ext"><b>2024 – now</b>
+        <span>That satellite anchor ends in 2023, so the level is modelled from weather.
+          Read an hour as indicative of conditions, not as a reading.</span></div>
+      <div class="tier-card t-fcst"><b>Forecast</b>
+        <span>A demonstration. Nothing about it is verified locally, and the interval is
+          deliberately wide.</span></div>
+    </div>
+  </article>
+
+  <article class="story-step" data-step="5">
+    <p class="story-num">05 — The honest limit</p>
+    <h3>The street-scale pattern is physics, not measurement.</h3>
+    <p>Where the pollution sits <em>within</em> the valley is imposed from a terrain and
+      traffic model, and its hour-to-hour sharpness has never been calibrated against
+      anything local. Five independent tests say that pattern cannot be learned from public
+      data either. One monitor inside the basin would change that — and would settle the
+      background question too.</p>
+    <a class="story-cta" href="#" data-goto="explore">Open the explorer →</a>
+  </article>
+</section>
 
   <div class="datetime-bar">
     <span class="dt-label">Date &amp; time</span>
@@ -159,6 +243,6 @@
     <div id="credits" class="credits"></div>
   </footer>
 
-  <script type="module" src="js/app.js?v=1786331166"></script>
+  <script type="module" src="js/app.js?v=1786332471"></script>
 </body>
 </html>

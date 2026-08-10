@@ -185,13 +185,26 @@ async function setTier(tier) {
 // One DOM, two layouts. Panels declare where they belong with data-surface, so
 // switching is a class flip — canvases keep their state and nothing re-fetches.
 const SURFACE_HINT = { explore: 'the map, hour by hour',
-                       insights: 'patterns and analysis across the record' };
+                       insights: 'patterns and analysis across the record',
+                       story: 'what this is, and how much to believe' };
 function setSurface(name, { push = true } = {}) {
-  const s = name === 'insights' ? 'insights' : 'explore';
+  const s = ['insights', 'story'].includes(name) ? name : 'explore';
   state.surface = s;
   const m = $('main');
   m.classList.toggle('view-insights', s === 'insights');
   m.classList.toggle('view-explore', s === 'explore');
+  // The narrative surface replaces the working views entirely rather than sitting
+  // alongside them: it is a different reading mode, and the date/time controls are
+  // meaningless while it is open.
+  const story = document.getElementById('story');
+  if (story) story.hidden = (s !== 'story');
+  m.hidden = (s === 'story');
+  for (const sel of ['.datetime-bar', '.timeline-wrap'])
+    for (const n of document.querySelectorAll(sel)) n.hidden = (s === 'story');
+  if (s === 'story') {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    revealStory();
+  }
   for (const b of document.querySelectorAll('.surf-btn')) {
     const on = b.dataset.surface === s;
     b.classList.toggle('active', on);
@@ -204,9 +217,28 @@ function setSurface(name, { push = true } = {}) {
   if (push && state.cur) writeHash(state.cur);
 }
 
+// Scroll-reveal for the narrative steps. IntersectionObserver rather than a scroll
+// handler so it costs nothing when idle, and it degrades to "everything visible" when
+// the OS asks for reduced motion.
+function revealStory() {
+  const steps = document.querySelectorAll('#story .story-step, #story .story-hero');
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    steps.forEach(e => e.classList.add('in')); return;
+  }
+  if (revealStory._io) { steps.forEach(e => revealStory._io.observe(e)); return; }
+  revealStory._io = new IntersectionObserver((entries) => {
+    for (const en of entries) if (en.isIntersecting) {
+      en.target.classList.add('in'); revealStory._io.unobserve(en.target);
+    }
+  }, { rootMargin: '0px 0px -12% 0px', threshold: 0.15 });
+  steps.forEach(e => revealStory._io.observe(e));
+}
+
 function wireSurfaces() {
   for (const b of document.querySelectorAll('.surf-btn'))
     b.addEventListener('click', () => setSurface(b.dataset.surface));
+  for (const a of document.querySelectorAll('[data-goto]'))
+    a.addEventListener('click', (e) => { e.preventDefault(); setSurface(a.dataset.goto); });
   setSurface('explore', { push: false });
   // Refit charts whenever the rail's width actually changes — covers the surface
   // switch (grid reflow) as well as window resizes. An observer is used rather
