@@ -29,7 +29,14 @@ export const CITIES = {
     defaultEpisode: 'dec2022',
     // open on the most recent available hour (nearest to "now") rather than a fixed
     // historical episode — the app should greet the visitor with current conditions
-    openAtNow: true,
+    // Open inside the ANCHORED period (2019-2023), not on "now" (2026-08-10).
+    // Those are the years the satellite level anchor covers, both sensors report,
+    // and the ten-city panel actually scored. 2024+ is a driver-anchored
+    // reconstruction whose episode TIMING is unvalidated, so landing a first-time
+    // visitor there showed them the weakest tier first. defaultEpisode picks the
+    // documented December 2022 haze event, which is both defensible and worth
+    // looking at. "Now" is still one click away in the date picker.
+    openAtNow: false,
     downloadPrefix: 'kandy_pm25',
     captionName: 'Kandy PM2.5',
     regime: null,

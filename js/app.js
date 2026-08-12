@@ -1,17 +1,17 @@
 // app.js — PM2.5 Explorer orchestrator (city-aware: Kandy default, Medellín
 // proving ground). All per-city behaviour comes from cities.js.
 
-import { $, el, fmt, fmtCI, clamp } from './util.js?v=1786387871';
-import { activeCity } from './cities.js?v=1786387871';
-import { Store, STORE_FCST } from './store.js?v=1786387871';
-import { colourMode, paintField, paintColourbar } from './field.js?v=1786387871';
-import { WindLayer, windWords } from './wind.js?v=1786387871';
-import { Timeline } from './timeline.js?v=1786387871';
-import { Overlay } from './overlay.js?v=1786387871';
-import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1786387871';
-import { initShowcase } from './showcase.js?v=1786387871';
-import { MapView } from './mapview.js?v=1786387871';
-import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1786387871';
+import { $, el, fmt, fmtCI, clamp } from './util.js?v=1786511070';
+import { activeCity } from './cities.js?v=1786511070';
+import { Store, STORE_FCST } from './store.js?v=1786511070';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1786511070';
+import { WindLayer, windWords } from './wind.js?v=1786511070';
+import { Timeline } from './timeline.js?v=1786511070';
+import { Overlay } from './overlay.js?v=1786511070';
+import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1786511070';
+import { initShowcase } from './showcase.js?v=1786511070';
+import { MapView } from './mapview.js?v=1786511070';
+import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1786511070';
 
 const MAP = 840;                    // internal map canvas resolution (square)
 const CITY = activeCity();
@@ -88,7 +88,13 @@ async function boot() {
   // fetching every year cost ~1.9 MB of scalars before first paint (5 years x ~370 KB)
   // when only one is ever displayed. First paint no longer waits on them.
   loadStep('years');
-  const yNow = store.meta.years[store.meta.years.length - 1];
+  // Load the year we will actually LAND on first, so first paint does not wait on
+  // a year the visitor may never look at. That is the last anchored year when the
+  // city opens inside the anchored period (see cities.js openAtNow).
+  const anchored = (store.meta.tiers || {}).anchored || [];
+  const yNow = (!CITY.openAtNow && anchored.length)
+    ? anchored[anchored.length - 1]
+    : store.meta.years[store.meta.years.length - 1];
   timeline.addYear(yNow, await store.getScalars(yNow));
   loadStep('years', true);
   (async () => {

@@ -6,7 +6,7 @@
 // wind animation registered — no per-layer re-projection needed. The outer
 // element (#mapstack) is the fixed, untransformed viewport we measure against.
 
-import { clamp } from './util.js?v=1786387871';
+import { clamp } from './util.js?v=1786511070';
 
 export class MapView {
   constructor(outer, inner, bbox, onChange) {
