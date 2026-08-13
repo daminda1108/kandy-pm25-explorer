@@ -34,7 +34,7 @@ python scripts/webapp_export.py --qa-only  # re-verify an existing payload
   `wind_library.bin.gz`, `static/`, `health.json`, `fect_{year}.json`
 
 ## Credits & licence
-Model & code: Kandy PM2.5 project (D. Alahakoon, U. Ranathunge, M. Dehideniya).
+Model & code: Kandy PM2.5 project (D. Alahakoon, U. Ranatunga, M. Dehideniya).
 Data: Van Donkelaar/ACAG V6 · GHAP (Wei et al.) · ERA5/Copernicus · NASA GEOS-CF ·
 WindNinja (USFS) · OpenStreetMap contributors (ODbL) · FECT PurpleAir · Senarathna et al. 2024.
 Research artefact — not a regulatory or health-advisory product.
