@@ -91,19 +91,26 @@
           campaign is read as a valley-floor point.</td>
       </tr>
       <tr>
-        <td>Fine within-city <b>spatial pattern</b> (which street is worse)</td>
+        <td>Fine within-city <b>spatial pattern</b> (which 1 km cell is worse)</td>
         <td><span class="badge b-sce">indicative</span></td>
-        <td>A physics-based pattern, not a measured field. The direction of the pattern is
-          supported, and the emission surface recovers station ranking in cities that do
-          have networks, but its amplitude at Kandy has not been measured locally. Read it
-          as indicative rather than exact.</td>
+        <td>A physics-based pattern, not a measured field, and <b>it cannot tell you which
+          street is worse</b>. That is now measured rather than assumed: two sites 300 m
+          apart inside a single cell of a Kandy roadside survey differ by 27.5× in the
+          observations and by 1.1× in this model, and re-running the physics at 94 m instead
+          of 1 km does not change that. The reason is that most of the variation is
+          <em>inside</em> a cell rather than between cells — the spread within a typical
+          cell is wider than the spread across the map — so a 1 km average cannot place it.
+          The coarse ordering is supported; the street-level detail is not.</td>
       </tr>
       <tr>
-        <td>Regional vs local <b>split</b> (≈75% / 25%)</td>
+        <td>Regional vs local <b>split</b> (≈52% / 48%)</td>
         <td><span class="badge b-anc">anchored</span></td>
-        <td>From source-apportionment literature and back-trajectory analysis, carried with
-          an uncertainty bracket. Kandy is relatively clean in itself and episodically
-          loaded by long-range transport.</td>
+        <td>Set by a physical constraint, not a literature prior. Local sources emit
+          continuously, so the regional background can never exceed the total; capping it
+          there gives a local fraction of 0.48, and that value barely moves (0.477–0.502)
+          across a fourfold sweep of the one free parameter. It replaces an earlier
+          literature-based estimate of about 25%, which this constraint refutes. Kandy is
+          relatively clean in itself and episodically loaded by long-range transport.</td>
       </tr>
     </table>
 
@@ -218,6 +225,13 @@
       by that statistical constraint.</li>
       <li>The overall framework (a regional background plus a locally structured increment
      ) is a <b>source-apportionment decomposition</b>, not a chemical transport model.</li>
+      <li>The transport layer has now been <b>scored, and it does not improve the map</b>.
+      Across ten cities with monitoring networks, ranking neighbourhoods using the raw
+      emission surface beats ranking them after the dispersion solver has run
+      (+0.37 against +0.27). The solver moves contrast to places the observations do not
+      support. It is retained because it is physically motivated and it supplies the
+      hour-to-hour behaviour, but the headline field does not depend on it and we would not
+      defend the displacement it produces as an accuracy gain.</li>
     </ul>
     <p>So: transport physics generates the pattern; the decomposition places it; the anchor
     sets the level. That is a deliberate design, a full transport model would need a local
@@ -283,7 +297,10 @@
         their ordering carries no information at those hours.</li>
       <li><b>Night</b>: terrain drainage (katabatic flow) can carry the accumulated local
         increment down-valley, so the night-time maximum may sit away from the centre.
-        This displacement is a direct prediction of the wind model, not an artefact.</li>
+        This displacement is a prediction of the wind model rather than a numerical
+        artefact — but it is <b>unverified, and the layer that produces it does not improve
+        neighbourhood ranking where we can check it</b> (see above). Treat a displaced
+        night-time peak as a hypothesis the model offers, not a finding.</li>
       <li><b>Haze events</b>: the elevated regional background covers the whole basin
         uniformly by construction; the model never concentrates transported background
         into the city core. What does concentrate is the locally-generated increment,
