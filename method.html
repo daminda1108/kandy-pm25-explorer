@@ -6,7 +6,7 @@
   <title>How it works · Kandy PM2.5 Explorer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=1786511070" />
+  <link rel="stylesheet" href="css/style.css?v=1791715454" />
   <style>
     .doc { max-width: 820px; margin: 0 auto; padding: 10px 22px 60px; line-height: 1.65; }
     .doc h2 { font-size: 22px; margin: 34px 0 10px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
@@ -54,20 +54,22 @@
     much weight it can carry.</p>
 
     <h2>The model in one equation</h2>
-    <div class="eq">PM(x, y, t) = B(t) + [ T(t) − B(t) ] · P<sub>local</sub>(x, y, t)</div>
+    <div class="eq">PM(x, y, t) = B(t) + max(T − B, 0) · P<sub>local</sub>(x, y, t) + min(T − B, 0)</div>
     <ul>
       <li><b>T(t)</b> is the basin-mean level for each hour. It comes from a
         gradient-boosted model driven by ERA5 meteorology, GEOS-CF and CAMS chemistry,
         satellite AOD and NO₂, and solar radiation. Each year it is re-anchored to the
-        satellite-derived annual mean, and its diurnal and seasonal swing is adjusted to
-        match ground observations.</li>
+        satellite-derived annual mean, scaled by one factor (0.80) fitted to the Central
+        Environmental Authority's Kandy monitoring station, and its diurnal and seasonal
+        swing is adjusted to match ground observations.</li>
       <li><b>B(t)</b> is the regional background that arrives over the area regardless of
         local activity. It is estimated from a rural satellite floor, shaped by the
         seasonal cycle and conditioned on air-mass origin.</li>
-      <li><b>P<sub>local</sub>(x, y, t)</b> is the within-valley spatial pattern (mean 1):
-        a traffic-emission surface modulated by boundary-layer confinement and
-        mass-consistent WindNinja terrain winds (channelling, night-time drainage,
-        day-time mixing).</li>
+      <li><b>P<sub>local</sub>(x, y, t)</b> is the within-valley spatial pattern (mean 1 at
+        every hour): the satellite level surface multiplied by a terrain-confinement term
+        that grows when the boundary layer sits below the ridges. A WindNinja dispersion
+        step was removed in October 2026 because it lowered agreement with withheld
+        stations in ten monitored cities.</li>
     </ul>
     <p>The basin mean of the field equals T(t) at every hour, so the whole animation can be
     rebuilt in the browser from a few small arrays. The physics was computed once, offline;
@@ -86,9 +88,11 @@
       <tr>
         <td>Annual <b>level</b> (how much, on average)</td>
         <td><span class="badge b-anc">anchored</span></td>
-        <td>Set to the satellite-derived annual mean (Van Donkelaar / ACAG V6), corroborated
-          within ~15% by GHAP and consistent with the 2019 KOALA ground campaign when that
-          campaign is read as a valley-floor point.</td>
+        <td>The satellite-derived annual mean (Van Donkelaar / ACAG V6) read about 24% above the
+          Central Environmental Authority's Kandy station, while the corrected low-cost sensor
+          agreed with it, so the level is scaled by 0.80 (95% interval 0.70–0.92), fitted on
+          2019 to mid-2021. On the station's 2022–2023 record, not used for the fit, the bias is
+          about −1%, over only 11 months. It rests on one station of undocumented method.</td>
       </tr>
       <tr>
         <td>Fine within-city <b>spatial pattern</b> (which 1 km cell is worse)</td>
@@ -152,7 +156,10 @@
     monitors it had never seen. The 2024–2026 years are shown as a separate, clearly labelled
     <em>extension</em> tier: the level and timing are modelled, the street-scale pattern is the
     2019–2023 climatology, and the level carries a wider uncertainty. The locked
-    2019–2023 headline is untouched by the extension.</p>
+    2019–2023 headline is untouched by the extension. Against the Central Environmental
+    Authority's Kandy station the extension reads about 40% low in 2024–2026: the station
+    reads much higher in those years than before, and whether that rise is real or a change
+    in the station's record is not yet known.</p>
 
     <p>One defect in this tier is worth stating plainly, because we found it late. The
     statistical model behind it systematically <em>under-produced high-pollution hours</em>:
@@ -202,8 +209,11 @@
     top of it is the forecast.</p>
 
     <h2 id="physics-status">What kind of model this is, and what it is not</h2>
-    <p>It is worth being exact about the physics, because the model contains a genuine
-    dispersion solver and it would be easy to over-read what that buys.</p>
+    <p>It is worth being exact about the physics. <b>Since October 2026 the delivered field no
+    longer uses the dispersion solver described below</b>: scored on withheld stations in ten
+    cities it lowered agreement, so the pattern is now the satellite level surface times
+    terrain confinement. The description is kept because the solver is still in the code
+    and it explains why it was removed.</p>
     <p><b>There is real transport physics inside.</b> The spatial pattern is generated by a
     terrain-aware solver of the steady-state advection–diffusion–deposition equation,
     <code>u·∇C − ∇·(K∇C) + λC = S</code>, on the valley's digital elevation model: wind
@@ -330,7 +340,7 @@
   </div>
 
   <script type="module">
-    import { getJSON } from './js/util.js?v=1786511070';
+    import { getJSON } from './js/util.js?v=1791715454';
     const meta = await getJSON('data/meta.json');
     const ul = document.getElementById('doc-credits');
     for (const [what, who] of meta.credits) {

@@ -7,7 +7,7 @@
   <meta name="description" content="Hourly 1 km PM2.5 fields for Kandy, Sri Lanka (2019–2026): heatmap, terrain wind, uncertainty, background/local split, weather conditions and documented haze events." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=1786511070" />
+  <link rel="stylesheet" href="css/style.css?v=1791715454" />
 </head>
 <body>
   <div id="loading">
@@ -27,7 +27,7 @@
     <div class="title-wrap">
       <div>
         <h1>Kandy PM<sub>2.5</sub> Explorer</h1>
-        <p class="subtitle">Research reconstruction · annual level anchored to satellite data ·
+        <p class="subtitle">Research reconstruction · annual level from satellite data, calibrated to the CEA Kandy station ·
           1 km pattern is physics-based and indicative, not street-level</p>
       </div>
       <span class="years">2019 – 2026</span>
@@ -105,9 +105,9 @@
     <h3>Three kinds of year, and they are not equally trustworthy.</h3>
     <div class="story-tiers">
       <div class="tier-card t-anchor"><b>2019 – 2023</b>
-        <span>Level pinned to a satellite product. The years the method was scored on.</span></div>
+        <span>Level from a satellite product, scaled to the CEA Kandy station (fitted 2019 to mid-2021, checked on 2022–2023).</span></div>
       <div class="tier-card t-ext"><b>2024 – now</b>
-        <span>That satellite anchor ends in 2023, so the level is modelled from weather.
+        <span>That satellite anchor ends in 2023, so the level is modelled from weather; against the CEA station it reads about 40% low.
           Read an hour as indicative of conditions, not as a reading.</span></div>
       <div class="tier-card t-fcst"><b>Forecast</b>
         <span>A demonstration. Nothing about it is verified locally, and the interval is
@@ -243,6 +243,6 @@
     <div id="credits" class="credits"></div>
   </footer>
 
-  <script type="module" src="js/app.js?v=1786511070"></script>
+  <script type="module" src="js/app.js?v=1791715454"></script>
 </body>
 </html>

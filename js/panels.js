@@ -3,7 +3,7 @@
 // decomposition split, exposure/health, click-a-pixel point query.
 // Every numeric estimate carries its interval.
 
-import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1786511070';
+import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1791715454';
 
 let store, seekCb, curField, city;
 let LT = 5.5 * 3600;
@@ -422,7 +422,7 @@ async function drawHealth(year) {
     // numbers beside a forecast hour would imply it had.
     const yl = $('#health-year'); if (yl) yl.textContent = 'annual record';
     $('#health-body').innerHTML =
-      `<p class="hnote">Exposure and health burden are annual figures from the
+      `<p class="hnote">Exposure figures are annual quantities from the
        reconstructed record. They are not computed for forecast hours — pick a date
        inside the record to see them.</p>`;
     return;
@@ -445,8 +445,9 @@ async function drawHealth(year) {
     <p class="hnote">GEMM exposure-response (${h.burden_note}). The interval reflects the
       exposure-response uncertainty; read the range, not only the central value.</p>`;
   } else {
-    html += `<p class="hnote">The full burden calculation uses the 2023 headline year
-      (${burdenHeadline(h)}). Exposure metrics are shown for every year.</p>`;
+    html += `<p class="hnote">No attributable-death estimate is shown: a defensible one needs
+      age-specific mortality, a settled level and propagated uncertainty, which this
+      model does not yet have. <a href="method.html#physics-status" target="_blank">why</a></p>`;
   }
   $('#health-body').innerHTML = html;
 }
