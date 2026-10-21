@@ -84,7 +84,8 @@
         <td><span class="badge b-val">validated</span></td>
         <td>Seasonal r ≈ 0.91 against the independent GHAP product. The shape within the day
           is fitted to the Central Environmental Authority's Kandy station on 2019 to mid-2021
-          (the low-cost sensors' nights read too high, likely a humidity artefact); on the
+          (the low-cost sensors' nights read too high, and rebuilding with an hourly humidity
+          correction did not help: it tracked the station less well); on the
           station's later hours the night-to-midday ratio is 0.77 against the station's 0.69,
           where it was 1.17 before that fit. The same timing holds across a ten-city test panel.</td>
       </tr>
@@ -98,6 +99,16 @@
           about −1%, over only 11 months. It rests on one station of undocumented method.</td>
       </tr>
       <tr>
+        <td><b>Day-to-day</b> sequence (which days are worse)</td>
+        <td><span class="badge b-sce">indicative</span></td>
+        <td>On 250 days of the Central Environmental Authority's station that were not used to
+          fit anything, the field's daily values correlate with the station at r 0.54 — about
+          the same as the CAMS reanalysis scaled to the station (0.57), and better within each
+          month (0.75 against 0.53). By squared daily error it is no better than CAMS or than
+          the station's own calendar-month averages, because it keeps the full day-to-day swing
+          while those are smoother. Treat a particular day as indicative.</td>
+      </tr>
+      <tr>
         <td>Fine within-city <b>spatial pattern</b> (which 1 km cell is worse)</td>
         <td><span class="badge b-sce">indicative</span></td>
         <td>A physics-based pattern, not a measured field, and <b>it cannot tell you which
@@ -107,7 +118,10 @@
           of 1 km does not change that. The reason is that most of the variation is
           <em>inside</em> a cell rather than between cells — the spread within a typical
           cell is wider than the spread across the map — so a 1 km average cannot place it.
-          The coarse ordering is supported; the street-level detail is not.</td>
+          The strength of the terrain term cannot be checked either: varying it from zero to
+          three times its value changes nothing at the regulatory station, while the map's
+          night-time contrast ranges from 1.05 to 1.25. The coarse ordering is supported in
+          other monitored cities, not tested at Kandy; the street-level detail is not supported.</td>
       </tr>
       <tr>
         <td>Regional vs local <b>split</b> (≈49% / 51%; f = 0.505, 0.45–0.52 across specifications)</td>
@@ -117,7 +131,8 @@
           there gives a local fraction of about 0.51, which moves between 0.45 and 0.52 with
           how the daily cap is specified, so it is a property of the decomposition, not a
           measured share. (It was 0.48 before the daily cycle was fitted to the regulatory
-          station: lower nights lower the capped background.) Measured at the station by two
+          station: lower nights lower the capped background. It would be about 0.54 with an hourly
+          humidity correction of the low-cost sensors, which the station does not favour.) Measured at the station by two
           routes it lies between 0.36 (a lower bound) and 0.53. It replaces an earlier
           literature-based estimate of about 25%, which this constraint refutes. Kandy is
           relatively clean in itself and episodically loaded by long-range transport.</td>
