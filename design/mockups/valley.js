@@ -110,10 +110,10 @@ export async function createValley(el, { base = 'assets', camera: camOpt = {}, l
       const v = bilinear16(q50, c / (n - 1), r / (n - 1));
       const [rgb, a] = pmColour(v);
       // haze pools in low ground: weight alpha by depth below the ridges
-      // haze pools in low ground and thins to nothing on the ridges, so the valley shape reads through it
-      const z01 = (height(r, c) - terrain.zmin) / zr;
-      const pool = Math.max(0, 1 - z01 / 0.55);
-      hcol.set([rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, 0.62 * a * pool * pool * edge[i]], i * 4);
+      // HONEST RENDERING (2026-10-27): colour and opacity come ONLY from the model's value in this cell. No
+      // elevation-based pooling: the model's own floor-to-ridge contrast is ~5 %, and drawing more would show a
+      // pattern the evidence does not support. The edge fade is cosmetic (the block's outer border), not data.
+      hcol.set([rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, 0.5 * a * edge[i]], i * 4);
     }
     hgeo.attributes.color.needsUpdate = true;
     h2.geometry.setAttribute('color', hgeo.attributes.color);
