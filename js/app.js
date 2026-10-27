@@ -1,17 +1,18 @@
 // app.js — PM2.5 Explorer orchestrator (city-aware: Kandy default, Medellín
 // proving ground). All per-city behaviour comes from cities.js.
 
-import { $, el, fmt, fmtCI, clamp } from './util.js?v=1793119389';
-import { activeCity } from './cities.js?v=1793119389';
-import { Store, STORE_FCST } from './store.js?v=1793119389';
-import { colourMode, paintField, paintColourbar } from './field.js?v=1793119389';
-import { WindLayer, windWords } from './wind.js?v=1793119389';
-import { Timeline } from './timeline.js?v=1793119389';
-import { Overlay } from './overlay.js?v=1793119389';
-import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1793119389';
-import { initShowcase } from './showcase.js?v=1793119389';
-import { MapView } from './mapview.js?v=1793119389';
-import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1793119389';
+import { $, el, fmt, fmtCI, clamp } from './util.js?v=1793120334';
+import { activeCity } from './cities.js?v=1793120334';
+import { Store, STORE_FCST } from './store.js?v=1793120334';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1793120334';
+import { WindLayer, windWords } from './wind.js?v=1793120334';
+import { Timeline } from './timeline.js?v=1793120334';
+import { Overlay } from './overlay.js?v=1793120334';
+import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1793120334';
+import { initShowcase } from './showcase.js?v=1793120334';
+import { MapView } from './mapview.js?v=1793120334';
+import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1793120334';
+import { zoneGrid, zoneStats, relWords, ZONES } from './zones.js?v=1793120334';
 
 const MAP = 840;                    // internal map canvas resolution (square)
 const CITY = activeCity();
@@ -414,18 +415,25 @@ function render(f) {
         + (store.meta.tier_note || '').replace(/"/g, '&quot;')
         + '">modelled extension year</span>' : '')
     + (isFcst ? ` <span class="uqtag fcsttag">${KIND_TAG[kind] || 'forecast'} · demonstration</span>` : '');
-  // On a forecast hour the RANGE leads and the median is secondary: the interval is
-  // the honest quantity, and Kandy has no station that could check the point value.
-  const readout = isFcst
-    ? `<span class="readout"><b>${fmt(f.basin05)} – ${fmt(f.basin95)}</b> µg/m³ `
-      + `<span class="dim">90% range, basin mean · most likely near ${fmt(f.basin)}</span></span>`
-    : `<span class="readout">basin ${fmtCI(f.basin, f.basin05, f.basin95)} · `
-      + `centre ${fmtCI(f.core, f.core05, f.core95)} · `
-      + `peak ${fmtCI(f.peak.v, f.peak.lo, f.peak.hi)} µg/m³`
-      + ` <span class="dim">near ${nearLandmark(f.peak.lat, f.peak.lon)}</span></span>`;
+  // This-hour card (redesign phase 2). The VALLEY AVERAGE is the anchored quantity and leads, with its 90%
+  // range drawn on the WHO-anchored scale. No single-cell numbers (city centre, peak): the within-valley
+  // pattern is indicative, so space is reported as three terrain zones relative to the average (zones.js).
+  // On a forecast hour the RANGE leads and the median is secondary.
+  const X = (v) => Math.max(0, Math.min(100, v / 90 * 100));
+  const big = isFcst
+    ? `<div class="hc-big num">${fmt(f.basin05)}–${fmt(f.basin95)}<small>µg/m³ · 90% range, valley average</small></div>
+       <div class="hc-sub">most likely near ${fmt(f.basin)} · demonstration</div>`
+    : `<div class="hc-big num">${fmt(f.basin)}<small>µg/m³ valley average</small></div>
+       <div class="hc-sub">90% range <span class="num">${fmt(f.basin05)}–${fmt(f.basin95)}</span></div>`;
   $('#map-title').innerHTML =
-    `<b>${day} ${hm}</b> · ${seasonOf(month)}, ${daypart(lh)}` + readout + tierTag
-    + (state.showUQ ? ' <span class="uqtag">showing 90% upper bound</span>' : '');
+    `<div class="hc-when"><span class="eyebrow">${day} · ${seasonOf(month)}, ${daypart(lh)}</span>`
+    + `<span class="hc-time num">${hm}</span></div>` + big
+    + `<div class="hc-scale" aria-hidden="true"><div class="ramp"></div>`
+    + `<div class="band" style="left:${X(f.basin05)}%;width:${X(f.basin95) - X(f.basin05)}%"></div>`
+    + `<div class="med" style="left:calc(${X(f.basin)}% - 1px)"></div>`
+    + [15, 35, 75].map((w) => `<span class="who" style="left:${X(w)}%">${w}</span>`).join('') + `</div>`
+    + `<div class="hc-tags">${tierTag}${state.showUQ ? ' <span class="uqtag">map shows 90% upper bound</span>' : ''}</div>`;
+  renderZones(f);
   const tb = $('#tier-banner');
   if (tb) {
     tb.textContent = isFcst ? forecastBanner(kind) : (isExt ? (store.meta.tier_note || '') : '');
@@ -434,6 +442,21 @@ function render(f) {
   }
   const ev = $('#fcst-evidence');
   if (ev) ev.style.display = isFcst ? '' : 'none';
+}
+
+// "Where in the valley?" — zone readout under the this-hour card
+let ZG = null;
+function renderZones(f) {
+  const box = $('#zones');
+  if (!box || !store.static.fields) return;
+  if (!ZG) ZG = zoneGrid(store.static.fields.elev);
+  const zs = zoneStats(f.q50, ZG, f.basin);
+  box.innerHTML = `<div class="zn-head"><span class="eyebrow">Where in the valley</span>`
+    + `<span class="ev ev-indicative" title="The within-valley pattern is a physical assumption; differences this small are inside the model's uncertainty.">indicative</span></div>`
+    + zs.map((z) => `<div class="zn-row"><span class="zn-name">${z.name} <small>${z.range}</small></span>`
+      + `<span class="zn-val">${relWords(z.pct)}</span></div>`).join('')
+    + `<p class="zn-note">Street-level differences in Kandy are far larger but play out over tens to hundreds of `
+    + `metres, below this map's 1 km resolution. <a href="method.html#claims" target="_blank">Why</a></p>`;
 }
 
 // Three kinds of modelled hour sit past the end of the reconstructed record, and
@@ -837,25 +860,29 @@ async function onPixelClick(e) {
 }
 
 // ── floating on-map point card ────────────────────────────────────────────────
+// Honest point query (redesign phase 2): the answer is the valley value and the clicked place's terrain
+// ZONE, not the 1 km cell's number, because the cell-to-cell pattern is indicative and sub-kilometre
+// differences (tens of times, kerbside vs garden) are below the map's resolution.
 function pointData(lat, lon) {
   const g = store.meta.grid, f = state.cur;
-  const li = nearIdx(g.lats, lat), lj = nearIdx(g.lons, lon), px = li * g.n_lon + lj;
+  const li = nearIdx(g.lats, lat), lj = nearIdx(g.lons, lon);
   const elev = store.static.fields.elev[li][lj];
-  const B = f.B, val = f.q50[px], local = Math.max(val - B, 0);
-  return { val, lo: f.q05[px], hi: f.q95[px], elev, B, local,
-           slat: g.lats[li], slon: g.lons[lj] };
+  if (!ZG) ZG = zoneGrid(store.static.fields.elev);
+  const zk = ZG[li * g.n_lon + lj], zs = zoneStats(f.q50, ZG, f.basin)[zk];
+  return { elev, zone: zs, basin: f.basin, lo: f.basin05, hi: f.basin95, slat: g.lats[li], slon: g.lons[lj] };
 }
 function showPointCard(lat, lon) {
   if (!state.cur) return;
   const d = pointData(lat, lon);
   $('#point-card-body').innerHTML =
-    `<div class="pc-val">${fmtCI(d.val, d.lo, d.hi)} <span class="pc-unit">µg/m³</span></div>
+    `<div class="pc-zone">${d.zone.name} <small>${d.zone.range}</small></div>
+     <div class="pc-val">${fmtCI(d.basin, d.lo, d.hi)} <span class="pc-unit">µg/m³ valley average</span></div>
+     <div class="pc-rel">${d.zone.name.toLowerCase()}: ${relWords(d.zone.pct)} <span class="ev ev-indicative">indicative</span></div>
      <div class="pc-rows">
-       <span>Background</span><span>${fmt(d.B)}</span>
-       <span>Local</span><span>${fmt(d.local)}</span>
        <span>Elevation</span><span>${fmt(d.elev, 0)} m</span>
        <span>Location</span><span>${d.slat.toFixed(3)}, ${d.slon.toFixed(3)}</span>
-     </div>`;
+     </div>
+     <p class="pc-note">Not a street-level reading: within a 1 km square, kerbside and garden air can differ many times over.</p>`;
   $('#point-card').hidden = false;
   repositionCard();
 }

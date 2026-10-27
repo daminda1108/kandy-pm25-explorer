@@ -4,10 +4,27 @@
 // the model's figure convention; 'universal' / 'adaptive' force either mode.
 // Grid size comes from the caller (meta.grid) — Kandy 16x16, Medellín 24x24.
 
-import { makeLUT, clamp } from './util.js?v=1793119389';
+import { makeLUT, clamp } from './util.js?v=1793120334';
 
 const LUT_YLORRD = makeLUT('ylorrd', 1.15);
 const LUT_TURBO = makeLUT('turbo', 0.85);
+
+// WHO-anchored scale (redesign phase 2, plan §6): FIXED 0–90 µg/m³ so a colour always means the same
+// concentration, with stops at the WHO 2021 values (AQG 5 annual / 15 24-h, interim targets 25, 35, 50, 75).
+const WHO_LO = 0, WHO_HI = 90;
+const WHO_STOPS = [[0, [159, 195, 178]], [5, [159, 195, 178]], [15, [233, 225, 180]], [25, [239, 199, 122]],
+                   [35, [229, 154, 82]], [50, [201, 101, 58]], [75, [142, 58, 44]], [90, [100, 36, 30]]];
+const LUT_WHO = (() => {
+  const lut = new Uint8ClampedArray(256 * 4);
+  for (let i = 0; i < 256; i++) {
+    const v = WHO_LO + (i / 255) * (WHO_HI - WHO_LO);
+    let k = 1; while (k < WHO_STOPS.length - 1 && v > WHO_STOPS[k][0]) k++;
+    const [a, ca] = WHO_STOPS[k - 1], [b, cb] = WHO_STOPS[k], t = b > a ? (v - a) / (b - a) : 0;
+    for (let c = 0; c < 3; c++) lut[i * 4 + c] = ca[c] + (cb[c] - ca[c]) * Math.max(0, Math.min(1, t));
+    lut[i * 4 + 3] = 255;
+  }
+  return lut;
+})();
 
 // Bilinear-upsample a NxN grid into a WxH Float32 buffer, north-up.
 // Grid pixel order is row-major lat-ASCENDING (index 0 = south); canvas y=0 is
@@ -33,6 +50,11 @@ export function colourMode(q50, pref = 'auto') {
   const sorted = Float32Array.from(q50).sort();
   const pct = (p) => sorted[Math.floor(clamp(p, 0, 1) * (sorted.length - 1))];
   const hot = pct(0.98);
+  // default ('auto'): the fixed WHO-anchored scale
+  if (pref === 'auto' || pref === 'who') {
+    return { mode: 'who', lut: LUT_WHO, lo: WHO_LO, hi: WHO_HI, gamma: 1, tag: 'fixed WHO scale',
+             ticks: [5, 15, 25, 35, 50, 75] };
+  }
   const universal = pref === 'universal' || (pref === 'auto' && hot >= 35);
   if (universal) {
     return { mode: 'turbo', lut: LUT_TURBO, lo: 8, hi: 90, gamma: 1,

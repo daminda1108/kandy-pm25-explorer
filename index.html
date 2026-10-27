@@ -6,11 +6,12 @@
   <title>Kandy PM2.5 Explorer · 2019–2026</title>
   <meta name="description" content="Hourly 1 km PM2.5 fields for Kandy, Sri Lanka (2019–2026): heatmap, terrain wind, uncertainty, background/local split, weather conditions and documented haze events." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/tokens.css?v=1793119389" />
-  <link rel="stylesheet" href="css/style.css?v=1793119389" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/tokens.css?v=1793120334" />
+  <link rel="stylesheet" href="css/style.css?v=1793120334" />
+  <link rel="stylesheet" href="css/valley.css?v=1793120334" />
 </head>
-<body>
+<body class="valley">
   <div id="loading">
     <div class="load-inner">
       <div class="spinner"></div>
@@ -24,26 +25,17 @@
     </div>
   </div>
 
-  <header>
-    <div class="title-wrap">
-      <div>
-        <h1>Kandy PM<sub>2.5</sub> Explorer</h1>
-        <p class="subtitle">Research reconstruction · level calibrated to one regulatory station (CEA Kandy, provisional) ·
-          day to day about as good as a scaled reanalysis · 1 km pattern is an assumed physical prior, not street-level</p>
-      </div>
-      <span class="years">2019 – 2026</span>
-    </div>
-    <div class="header-right">
-      <a href="method.html" class="method-link">How it works</a>
-    </div>
+  <header class="v-top">
+    <a class="v-mark" href="#" data-goto="story">Kandy Air <span class="eyebrow">PM<sub>2.5</sub> · 2019–2026</span></a>
+    <span class="v-claim" title="Level calibrated to one regulatory station (CEA Kandy, provisional) · day to day about as good as a scaled reanalysis · the 1 km pattern is an assumed physical prior, not street-level">Research reconstruction · level calibrated to one station</span>
+    <nav class="surface-nav" role="tablist" aria-label="Views">
+      <button class="surf-btn" data-surface="story" role="tab" aria-selected="false">Story</button>
+      <button class="surf-btn active" data-surface="explore" role="tab" aria-selected="true">Explore</button>
+      <button class="surf-btn" data-surface="insights" role="tab" aria-selected="false">Insights</button>
+      <span class="surf-hint" id="surf-hint" hidden>the map, hour by hour</span>
+    </nav>
+    <a href="method.html" class="method-link">How it works</a>
   </header>
-
-  <nav class="surface-nav" role="tablist" aria-label="Views">
-    <button class="surf-btn" data-surface="story" role="tab" aria-selected="false">Story</button>
-    <button class="surf-btn active" data-surface="explore" role="tab" aria-selected="true">Explore</button>
-    <button class="surf-btn" data-surface="insights" role="tab" aria-selected="false">Insights</button>
-    <span class="surf-hint" id="surf-hint">the map, hour by hour</span>
-  </nav>
 
 
 <!-- ══ NARRATIVE SURFACE ══════════════════════════════════════════════════
@@ -129,6 +121,114 @@
   </article>
 </section>
 
+  <main>
+    <section class="map-col v-stage">
+      <div id="mapstack" class="mapstack">
+        <div id="mappan" class="mappan"></div>
+        <div class="zoom-ctl">
+          <button id="zoom-in" title="Zoom in">+</button>
+          <button id="zoom-out" title="Zoom out">&minus;</button>
+          <button id="zoom-reset" title="Reset view">⤢</button>
+        </div>
+        <div id="wind-legend" class="wind-legend" title="Valley-mean wind this hour"></div>
+        <div id="point-card" class="point-card" hidden>
+          <button id="point-close" class="pc-close" title="Close">×</button>
+          <div id="point-card-body"></div>
+        </div>
+      </div>
+
+      <div class="v-card">
+        <div id="map-title" class="map-title"></div>
+        <div id="cond-chip" class="cond-chip" title="What is driving this hour; thresholds are on the method page"></div>
+        <div id="zones" class="zones"></div>
+        <p id="tier-banner" class="tier-banner"></p>
+        <details id="fcst-evidence" class="fcst-evidence" style="display:none"></details>
+      </div>
+
+      <div class="map-foot v-legend">
+        <div class="colourbar-wrap">
+          <div class="cb-box">
+            <canvas id="colourbar" width="260" height="12"></canvas>
+            <div id="cb-ticks" class="cb-ticks"></div>
+          </div>
+          <div class="cb-label">PM<sub>2.5</sub> (µg/m³) · <span id="cb-tag">adaptive</span></div>
+        </div>
+        <div class="seg" role="group" aria-label="Colour scale">
+          <button class="seg-btn active" data-mode="auto" title="Fixed 0–90 µg/m³, stops at WHO values: a colour always means the same concentration">WHO scale</button>
+          <button class="seg-btn" data-mode="universal" title="Wide rainbow range, 8–90 µg/m³">Universal</button>
+          <button class="seg-btn" data-mode="adaptive" title="Stretches the colours to this hour's range: exaggerates small, indicative differences">Emphasise pattern</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="rail v-drawer">
+      <div class="v-tabs" role="tablist" aria-label="Details">
+        <button class="v-tab on" data-tab="day" role="tab">Day</button>
+        <button class="v-tab" data-tab="air" role="tab">Air mass</button>
+        <button class="v-tab" data-tab="weather" role="tab">Weather</button>
+        <button class="v-tab" data-tab="point" role="tab">Point</button>
+        <button class="v-tab" data-tab="exposure" role="tab">Exposure</button>
+        <button class="v-tab" data-tab="layers" role="tab">Layers</button>
+        <button class="v-tab" data-tab="data" role="tab">Events &amp; data</button>
+      </div>
+      <div class="panel" data-surface="both" data-tab="day">
+        <h3>Temporal variation <span class="hint">selected day</span></h3>
+        <canvas id="diurnal-canvas"></canvas>
+        <p id="diurnal-note" class="note"></p>
+        <h4 class="sub-h">Months of <span id="season-year"></span></h4>
+        <canvas id="season-canvas"></canvas>
+      </div>
+      <div class="panel" data-surface="both" data-tab="air">
+        <h3>Background vs local</h3>
+        <canvas id="decomp-canvas"></canvas>
+        <p id="decomp-note" class="note"></p>
+      </div>
+      <div class="panel" data-surface="explore" data-tab="weather">
+        <h3>Weather <span class="hint">ERA5, this hour</span></h3>
+        <div id="weather-body" class="kv"></div>
+        <p id="weather-note" class="note"></p>
+      </div>
+      <div class="panel" id="point-panel" data-surface="explore" data-tab="point">
+        <h3>Point query <span class="hint">click the map</span></h3>
+        <div id="point-body" class="kv"><p class="note">Click anywhere on the map to see which terrain zone it lies in and how that zone compares with the valley average.</p></div>
+      </div>
+      <div class="panel" data-surface="both" data-tab="exposure">
+        <h3>Exposure · <span id="health-year"></span></h3>
+        <div id="health-body" class="kv"></div>
+      </div>
+      <div class="panel" data-surface="explore" data-tab="layers">
+        <h3>Map layers</h3>
+        <div class="controls">
+          <label class="tog"><input type="checkbox" id="uq" /> show the 90% upper bound</label>
+          <label class="tog" title="The within-valley pattern is a physical assumption (satellite surface × terrain), not a measured map. Off: only the anchored valley level is drawn."><input type="checkbox" id="layer-pattern" checked /> pattern <span class="ev ev-indicative">indicative</span></label>
+          <label class="tog" title="Where emissions are likely: VIIRS night-time lights (2022) and OpenStreetMap bus stations (B), markets (M), railway stations (R). Sources, not concentrations."><input type="checkbox" id="layer-sources" /> sources <span class="ev ev-measured">measured</span></label>
+          <label class="tog" title="Elevation contours every 100 m and the valley floor below 500 m, from a 100 m terrain model."><input type="checkbox" id="layer-terrain" checked /> terrain <span class="ev ev-measured">measured</span></label>
+          <label class="tog" title="Traffic-emission surface built from road-network centrality: a model proxy, not a measurement."><input type="checkbox" id="layer-emission" /> traffic proxy <span class="ev ev-modelled">modelled</span></label>
+          <label class="tog"><input type="checkbox" id="layer-roads" checked /> roads</label>
+          <label class="tog"><input type="checkbox" id="layer-water" checked /> water</label>
+          <label class="tog"><input type="checkbox" id="layer-landmarks" checked /> place names</label>
+        </div>
+        <p class="note">Measured layers show where sources and terrain are. They are not concentrations.</p>
+      </div>
+      <div class="panel" data-surface="explore" data-tab="data">
+        <h3>Documented events</h3>
+        <div class="episodes-row" id="episodes-row"><span id="episodes"></span></div>
+        <div id="episode-card" class="episode-card"></div>
+        <h3 class="v-h3b">Download</h3>
+        <div class="download-row">
+          <button id="dl-png" class="dl-btn">PNG map</button>
+          <button id="dl-csv" class="dl-btn">field CSV</button>
+          <button id="dl-point" class="dl-btn" disabled>point series CSV</button>
+          <button id="copy-link" class="dl-btn" title="Copy a link to exactly this view">copy link</button>
+        </div>
+        <h3 class="v-h3b">About this record</h3>
+        <div id="integrity-text" class="integrity"></div>
+        <div id="credits" class="credits"></div>
+      </div>
+    </aside>
+  </main>
+
+  <section class="v-bar">
   <div class="datetime-bar">
     <span class="dt-label">Date &amp; time</span>
     <select id="sel-year" aria-label="Year"></select>
@@ -146,108 +246,12 @@
       <button id="next" title="Next hour (→)">&#9654;&#9654;</button>
     </div>
   </div>
-
-  <main>
-    <section class="map-col">
-      <div id="map-title" class="map-title"></div>
-      <div id="cond-chip" class="cond-chip" title="What is driving this hour; thresholds are on the method page"></div>
-      <div id="mapstack" class="mapstack">
-        <div id="mappan" class="mappan"></div>
-        <div class="zoom-ctl">
-          <button id="zoom-in" title="Zoom in">+</button>
-          <button id="zoom-out" title="Zoom out">&minus;</button>
-          <button id="zoom-reset" title="Reset view">⤢</button>
-        </div>
-        <div id="wind-legend" class="wind-legend" title="Basin-mean wind this hour"></div>
-        <div id="point-card" class="point-card" hidden>
-          <button id="point-close" class="pc-close" title="Close">×</button>
-          <div id="point-card-body"></div>
-        </div>
-      </div>
-
-      <div class="map-foot">
-        <div class="colourbar-wrap">
-          <div class="cb-box">
-            <canvas id="colourbar" width="260" height="12"></canvas>
-            <div id="cb-ticks" class="cb-ticks"></div>
-          </div>
-          <div class="cb-label">PM<sub>2.5</sub> (µg/m³) · <span id="cb-tag">adaptive</span></div>
-        </div>
-        <div class="seg" role="group" aria-label="Colour scale">
-          <button class="seg-btn active" data-mode="auto">Auto</button>
-          <button class="seg-btn" data-mode="universal">Universal</button>
-          <button class="seg-btn" data-mode="adaptive">Adaptive</button>
-        </div>
-      </div>
-
-      <div class="controls">
-        <label class="tog"><input type="checkbox" id="uq" /> 90% upper bound</label>
-        <span class="spacer"></span>
-        <label class="tog" title="The within-valley pattern is a physical assumption (satellite surface × terrain), not a measured map. Off: only the anchored valley level is drawn."><input type="checkbox" id="layer-pattern" checked /> pattern <span class="ev ev-indicative">indicative</span></label>
-        <label class="tog" title="Where emissions are likely: VIIRS night-time lights (2022) and OpenStreetMap bus stations (B), markets (M), railway stations (R). Sources, not concentrations."><input type="checkbox" id="layer-sources" /> sources <span class="ev ev-measured">measured</span></label>
-        <label class="tog" title="Elevation contours every 100 m and the valley floor below 500 m, from a 100 m terrain model."><input type="checkbox" id="layer-terrain" checked /> terrain <span class="ev ev-measured">measured</span></label>
-        <label class="tog" title="Traffic-emission surface built from road-network centrality: a model proxy, not a measurement."><input type="checkbox" id="layer-emission" /> traffic proxy <span class="ev ev-modelled">modelled</span></label>
-        <label class="tog"><input type="checkbox" id="layer-roads" checked /> roads</label>
-        <label class="tog"><input type="checkbox" id="layer-water" checked /> water</label>
-        <label class="tog"><input type="checkbox" id="layer-landmarks" checked /> labels</label>
-      </div>
-
-      <p id="tier-banner" class="tier-banner"></p>
-      <details id="fcst-evidence" class="fcst-evidence" style="display:none"></details>
-
-      <div class="episodes-row" id="episodes-row">
-        <span class="ep-label">Documented events:</span>
-        <span id="episodes"></span>
-      </div>
-      <div id="episode-card" class="episode-card"></div>
-
-      <div class="download-row">
-        <span class="ep-label">Download:</span>
-        <button id="dl-png" class="dl-btn">PNG map</button>
-        <button id="dl-csv" class="dl-btn">field CSV</button>
-        <button id="dl-point" class="dl-btn" disabled>point series CSV</button>
-        <button id="copy-link" class="dl-btn" title="Copy a link to exactly this view">copy link</button>
-      </div>
-    </section>
-
-    <aside class="rail">
-      <div class="panel" data-surface="both">
-        <h3>Temporal variation <span class="hint">selected day</span></h3>
-        <canvas id="diurnal-canvas"></canvas>
-        <p id="diurnal-note" class="note"></p>
-        <h4 class="sub-h">Months of <span id="season-year"></span></h4>
-        <canvas id="season-canvas"></canvas>
-      </div>
-      <div class="panel" data-surface="explore">
-        <h3>Weather <span class="hint">ERA5, this hour</span></h3>
-        <div id="weather-body" class="kv"></div>
-        <p id="weather-note" class="note"></p>
-      </div>
-      <div class="panel" data-surface="both">
-        <h3>Background vs local</h3>
-        <canvas id="decomp-canvas"></canvas>
-        <p id="decomp-note" class="note"></p>
-      </div>
-      <div class="panel" id="point-panel" data-surface="explore">
-        <h3>Point query <span class="hint">click the map</span></h3>
-        <div id="point-body" class="kv"></div>
-      </div>
-      <div class="panel" data-surface="both">
-        <h3>Exposure &amp; health · <span id="health-year"></span></h3>
-        <div id="health-body" class="kv"></div>
-      </div>
-    </aside>
-  </main>
-
   <div class="timeline-wrap">
     <canvas id="timeline"></canvas>
   </div>
+  </section>
 
-  <footer>
-    <div id="integrity-text" class="integrity"></div>
-    <div id="credits" class="credits"></div>
-  </footer>
-
-  <script type="module" src="js/app.js?v=1793119389"></script>
+  <script type="module" src="js/shell.js?v=1793120334"></script>
+  <script type="module" src="js/app.js?v=1793120334"></script>
 </body>
 </html>

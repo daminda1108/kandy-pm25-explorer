@@ -3,7 +3,8 @@
 // decomposition split, exposure/health, click-a-pixel point query.
 // Every numeric estimate carries its interval.
 
-import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1793119389';
+import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1793120334';
+import { zoneGrid, zoneStats, relWords } from './zones.js?v=1793120334';
 
 let store, seekCb, curField, city;
 let LT = 5.5 * 3600;
@@ -341,13 +342,15 @@ async function annualSplit(year) {
 }
 
 async function drawDecomp(f) {
-  const B = f.B, basin = f.basin, core = f.core;
+  // second row: the valley-floor ZONE mean, not the single city-centre cell (honest-spatial rules)
+  const zgD = zoneGrid(store.static.fields.elev);
+  const B = f.B, basin = f.basin, core = zoneStats(f.q50, zgD, basin)[0].mean;
   const localBasin = Math.max(basin - B, 0), localCore = Math.max(core - B, 0);
   const pctLocal = basin > 0 ? (localBasin / basin) * 100 : 0;
   const cv = $('#decomp-canvas');
   const { ctx, w: W, h: H } = fitCanvas(cv, panelW(cv), 108);
   ctx.clearRect(0, 0, W, H);
-  const rows = [['basin mean', B, localBasin], ['city centre', B, localCore]];
+  const rows = [['valley average', B, localBasin], ['valley floor', B, localCore]];
   const maxv = Math.max(basin, core) * 1.18 + 1;
   const x0 = 78, bw = W - x0 - 46, bh = 20;
   rows.forEach(([lab, bg, loc], i) => {
@@ -356,8 +359,8 @@ async function drawDecomp(f) {
     ctx.textBaseline = 'middle';
     ctx.fillText(lab, x0 - 8, y + bh / 2);
     const wB = (bg / maxv) * bw, wL = (loc / maxv) * bw;
-    ctx.fillStyle = '#4b8fd4'; roundRect(ctx, x0, y, wB, bh, 4); ctx.fill();
-    ctx.fillStyle = '#e6672a';
+    ctx.fillStyle = '#b9a88f'; roundRect(ctx, x0, y, wB, bh, 4); ctx.fill();   // background (Valley palette)
+    ctx.fillStyle = '#e8a35a';                                                  // local increment
     if (wL > 0.5) { roundRect(ctx, x0 + wB, y, wL, bh, 4); ctx.fill(); }
     // B uncertainty whisker (background bracket)
     const xlo = x0 + (f.bLo / maxv) * bw, xhi = x0 + (f.bHi / maxv) * bw;
@@ -468,14 +471,17 @@ export async function pointQuery(lat, lon, silent = false) {
   const px = li * g.n_lon + lj;
   pinnedPx = px;
   const f = curField;
-  const val = f.q50[px], lo = f.q05[px], hi = f.q95[px];
   const elev = store.static.fields.elev[li][lj];
-  const B = f.B, local = Math.max(val - B, 0);
+  // honest point query (redesign phase 2): zone + valley value, never the 1 km cell's number
+  const zg = zoneGrid(store.static.fields.elev), z = zoneStats(f.q50, zg, f.basin)[zg[px]];
   $('#point-body').innerHTML = `
     <div class="hrow"><span>Location</span><span class="hval"><b>${lat.toFixed(4)}, ${lon.toFixed(4)}</b></span></div>
-    <div class="hrow"><span>Elevation</span><span class="hval"><b>${fmt(elev, 0)}</b> m</span></div>
-    <div class="hrow"><span>PM₂.₅ (this hour)</span><span class="hval">${fmtCI(val, lo, hi)} µg/m³</span></div>
-    <div class="hrow"><span>Background / local</span><span class="hval"><b>${fmt(B)}</b> / <b>${fmt(local)}</b> µg/m³</span></div>`;
+    <div class="hrow"><span>Elevation</span><span class="hval"><b>${fmt(elev, 0)}</b> m · ${z.name.toLowerCase()}</span></div>
+    <div class="hrow"><span>Valley average (this hour)</span><span class="hval">${fmtCI(f.basin, f.basin05, f.basin95)} µg/m³</span></div>
+    <div class="hrow"><span>This zone</span><span class="hval">${relWords(z.pct)} <span class="ev ev-indicative">indicative</span></span></div>
+    <p class="hnote">Not a street-level reading: within a 1 km square, kerbside and garden air can differ many
+      times over (PM10 ranged 85-fold across a Kandy roadside survey, Elangasinghe &amp; Shanthini 2008).
+      The day chart follows this location's 1 km cell.</p>`;
   $('#point-panel').classList.add('show');
   drawDiurnal(curField);              // overlay this location's own diurnal curve
 }
