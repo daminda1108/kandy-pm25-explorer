@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kandy Air — hero (mock-up A)</title>
+<link rel="stylesheet" href="tokens.css">
+<script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
+<style>
+  #scene { position: fixed; inset: 0; }
+  .labels { position: absolute; inset: 0; pointer-events: none; }
+  .lbl { position: absolute; left: 0; top: 0; font: 500 11px/1 var(--font-ui); color: var(--paper-2);
+         letter-spacing: .04em; white-space: nowrap; text-shadow: 0 1px 6px rgba(0,0,0,.7); margin: -6px 0 0 8px; }
+  .lbl::before { content: ''; position: absolute; left: -8px; top: 3px; width: 4px; height: 4px; border-radius: 50%;
+                 background: var(--paper-2); }
+  .lbl.city { font: 400 italic 17px/1 var(--font-display); color: var(--paper); }
+  .shade { position: fixed; inset: 0; pointer-events: none;
+           background: linear-gradient(90deg, rgba(15,13,11,.82) 0%, rgba(15,13,11,.45) 34%, rgba(15,13,11,0) 52%),
+                       linear-gradient(180deg, rgba(15,13,11,.7) 0%, rgba(15,13,11,0) 26%, rgba(15,13,11,0) 72%,
+                                       rgba(15,13,11,.9) 100%); }
+  header { position: fixed; top: 22px; left: 32px; right: 32px; display: flex; justify-content: space-between;
+           align-items: center; z-index: 5; }
+  .mark { font: 400 20px/1 var(--font-display); letter-spacing: -.01em; }
+  .mark sub { font-size: 11px; }
+  nav a { color: var(--paper-2); text-decoration: none; font-size: 13px; margin-left: 26px; }
+  nav a.cta { color: var(--ink-0); background: var(--paper); padding: 8px 14px; border-radius: 99px; font-weight: 500; }
+  .hero { position: fixed; left: 32px; top: 15vh; max-width: 760px; z-index: 4; }
+  .hero h1 { font-size: clamp(40px, 6.2vw, 86px); line-height: 1.02; margin: 18px 0 22px; }
+  .hero h1 em { font-style: italic; color: var(--accent); }
+  .hero p { font-size: 17px; color: var(--paper-2); max-width: 560px; margin: 0; }
+  .now { position: fixed; left: 32px; bottom: 30px; z-index: 5; display: flex; gap: 22px; align-items: flex-end; }
+  .now .t { font: 400 34px/1 var(--font-display); }
+  .now .v b { font: 600 22px/1 var(--font-ui); }
+  .now .bar { width: 160px; height: 4px; border-radius: 4px; position: relative; margin-top: 8px;
+              background: linear-gradient(90deg, var(--pm-5), var(--pm-15), var(--pm-25), var(--pm-35), var(--pm-50), var(--pm-75)); }
+  .now .bar i { position: absolute; top: -4px; width: 2px; height: 12px; background: var(--paper); }
+  .scroll { position: fixed; right: 32px; bottom: 30px; z-index: 5; color: var(--paper-3); font-size: 12px;
+            letter-spacing: .14em; text-transform: uppercase; }
+  .scroll::after { content: ''; display: block; width: 1px; height: 46px; background: var(--paper-3); margin: 10px auto 0;
+                   animation: drip 2.4s var(--ease) infinite; transform-origin: top; }
+  @keyframes drip { 0% { transform: scaleY(0); } 60% { transform: scaleY(1); } 100% { transform: scaleY(1); opacity: 0; } }
+</style>
+</head>
+<body>
+<div class="mock-note">mock-up A · hero · real terrain + model field, 7 Dec 2022</div>
+<div id="scene"></div>
+<div class="shade"></div>
+<header>
+  <div class="mark">Kandy Air <span class="eyebrow" style="margin-left:10px">PM<sub>2.5</sub> · 2019–2026</span></div>
+  <nav><a href="#">The story</a><a href="#">Method</a><a href="explorer.html" class="cta">Explore the valley</a></nav>
+</header>
+<section class="hero">
+  <div class="eyebrow">Central Province · Sri Lanka</div>
+  <h1 class="display">Kandy breathes air<br>that is <em>half its own</em>.</h1>
+  <p>A reconstruction of fine-particle pollution over the Kandy valley, hour by hour, 2019 to today. About half
+     of it is made here; the rest drifts in from across the Bay of Bengal. Calibrated to one regulatory station,
+     honest about the rest.</p>
+</section>
+<div class="now">
+  <div><div class="eyebrow" id="date">7 Dec 2022</div><div class="t num" id="time">06:30</div></div>
+  <div class="v"><div class="eyebrow">Valley average</div><b class="num" id="val">44.6</b> <span style="color:var(--paper-3)">µg/m³</span>
+    <div class="bar"><i id="tick"></i></div></div>
+</div>
+<div class="scroll">Scroll</div>
+<script type="module">
+  import { createValley } from './valley.js';
+  const v = await createValley(document.getElementById('scene'),
+                               { camera: { x: -0.6, y: 6.4, z: 12.6, tx: -3.0, tz: -0.4, fov: 36 } });
+  const day = await fetch('assets/day.json').then((r) => r.json());
+  let i = 6;
+  const show = () => {
+    const h = day.hours[i]; v.setField(h.q50);
+    document.getElementById('time').textContent = h.t.slice(11);
+    document.getElementById('val').textContent = h.basin.toFixed(1);
+    document.getElementById('tick').style.left = Math.min(100, h.basin / 90 * 100) + '%';
+  };
+  show(); setInterval(() => { i = (i + 1) % day.hours.length; show(); }, 1600);
+</script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kandy Air — phone (mock-up A)</title>
+<link rel="stylesheet" href="tokens.css">
+<script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
+<style>
+  html, body { overflow: hidden; max-width: 100vw; }
+  #scene { position: fixed; left: 0; right: 0; top: 0; height: 62vh; overflow: hidden; }
+  .labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .lbl { position: absolute; left: 0; top: 0; font: 500 10px/1 var(--font-ui); color: var(--paper-2); white-space: nowrap;
+         text-shadow: 0 1px 5px rgba(0,0,0,.85); margin: -5px 0 0 7px; }
+  .lbl::before { content: ''; position: absolute; left: -7px; top: 3px; width: 3px; height: 3px; border-radius: 50%; background: var(--paper-2); }
+  .lbl.city { font: 400 italic 14px/1 var(--font-display); color: var(--paper); }
+  .top { position: fixed; top: 0; left: 0; right: 0; padding: 14px 16px 30px; z-index: 5;
+         background: linear-gradient(180deg, rgba(15,13,11,.9), rgba(15,13,11,0)); display: flex; justify-content: space-between; }
+  .mark { font: 400 18px/1 var(--font-display); }
+  .read { position: fixed; top: 48px; left: 16px; z-index: 5; }
+  .read .big { font: 600 40px/1 var(--font-ui); letter-spacing: -.02em; }
+  .read .big small { font: 400 13px var(--font-ui); color: var(--paper-3); margin-left: 3px; }
+  .read .sub { font-size: 12px; color: var(--paper-2); margin-top: 4px; }
+  .pill { display: inline-block; margin-top: 8px; background: rgba(15,13,11,.86); position: relative; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; height: 44vh; z-index: 6; border-radius: 22px 22px 0 0;
+           background: rgba(23,20,15,.86); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+           border-top: 1px solid var(--ink-line); padding: 10px 16px 0; }
+  .grab { width: 38px; height: 4px; border-radius: 4px; background: var(--paper-3); margin: 0 auto 12px; }
+  .row { display: flex; align-items: center; gap: 12px; }
+  .play { width: 40px; height: 40px; flex: none; border-radius: 50%; background: var(--paper); color: var(--ink-0);
+          display: grid; place-items: center; font-size: 14px; }
+  .t { font: 400 26px/1 var(--font-display); }
+  #day { width: 100%; height: 64px; display: block; margin-top: 10px; }
+  #year { width: 100%; height: 14px; display: block; border-radius: 4px; margin-top: 8px; }
+  .yrs { display: flex; justify-content: space-between; font: 500 9px/1 var(--font-ui); color: var(--paper-3); margin-top: 4px; }
+  .tabs { display: flex; gap: 6px; margin: 16px -16px 0; padding: 0 16px; overflow-x: auto; }
+  .tabs b { flex: none; font: 500 12px/1 var(--font-ui); padding: 9px 13px; border-radius: 99px; border: 1px solid var(--ink-line); color: var(--paper-2); }
+  .tabs b.on { background: var(--paper); color: var(--ink-0); border-color: var(--paper); }
+  .split { display: flex; height: 7px; border-radius: 7px; overflow: hidden; margin: 16px 0 6px; }
+  .split .b { background: #b9a88f; } .split .l { background: var(--accent); }
+  .lg { display: flex; justify-content: space-between; font-size: 12px; color: var(--paper-2); }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div class="top"><span class="mark">Kandy Air</span><span class="badge"><i></i>Anchored</span></div>
+<div class="read">
+  <div class="big num"><span id="v">54.6</span><small>µg/m³</small></div>
+  <div class="sub">Valley average · 90 % range <span class="num" id="rng">18–92</span></div>
+  <span class="badge pill">National haze · stagnant air</span>
+</div>
+<section class="sheet">
+  <div class="grab"></div>
+  <div class="row"><div class="play">▶</div>
+    <div><div class="eyebrow">Wed · 7 Dec 2022</div><div class="t num" id="t">07:30</div></div></div>
+  <svg id="day" viewBox="0 0 360 64" preserveAspectRatio="none"></svg>
+  <canvas id="year"></canvas>
+  <div class="yrs"><span>2019</span><span>2021</span><span>2023</span><span style="color:var(--accent)">2025 · extension</span></div>
+  <div class="tabs"><b class="on">Air mass</b><b>Weather</b><b>Point</b><b>Exposure</b><b>Data</b></div>
+  <div class="split"><div class="b" id="sb"></div><div class="l" id="sl"></div></div>
+  <div class="lg"><span>From outside <b class="num" id="pb"></b></span><span>Made in the valley <b class="num" id="pl"></b></span></div>
+</section>
+<script type="module">
+  import { createValley, pmCss } from './valley.js';
+  const v = await createValley(document.getElementById('scene'),
+                               { camera: { x: 0.6, y: 9.5, z: 12.5, tx: 0.4, tz: -0.2, fov: 44 } });
+  const day = await fetch('assets/day.json').then((r) => r.json());
+  const years = await fetch('assets/years.json').then((r) => r.json());
+  const dsvg = document.getElementById('day'), W = 360, H = 64;
+  const xs = (i) => i / 23 * W, ys = (p) => H - 3 - p / 75 * (H - 8);
+  const pts = (k) => day.hours.map((h, i) => `${xs(i)},${ys(h[k])}`).join(' ');
+  const cv = document.getElementById('year'), ctx = cv.getContext('2d');
+  cv.width = cv.clientWidth * 2; cv.height = 28; const bw = cv.width / years.length;
+  years.forEach((d, k) => { ctx.globalAlpha = d.tier === 'extension' ? .45 : 1; ctx.fillStyle = pmCss(d.v); ctx.fillRect(k * bw, 0, Math.ceil(bw), 28); });
+  ctx.globalAlpha = 1; ctx.fillStyle = '#f2e9dc'; ctx.fillRect(years.findIndex((d) => d.d === day.date) * bw - 1, 0, 3, 28);
+  let i = 7;
+  function show() {
+    const h = day.hours[i]; v.setField(h.q50);
+    document.getElementById('v').textContent = h.basin.toFixed(1);
+    document.getElementById('rng').textContent = `${h.lo.toFixed(0)}–${h.hi.toFixed(0)}`;
+    document.getElementById('t').textContent = h.t.slice(11);
+    const local = Math.max(h.basin - h.B, 0), pb = h.B / (h.B + local) * 100;
+    document.getElementById('sb').style.width = pb + '%'; document.getElementById('sl').style.width = (100 - pb) + '%';
+    document.getElementById('pb').textContent = pb.toFixed(0) + '%'; document.getElementById('pl').textContent = (100 - pb).toFixed(0) + '%';
+    dsvg.innerHTML = `
+      <polygon points="${pts('hi')} ${day.hours.map((d, k) => `${xs(23 - k)},${ys(day.hours[23 - k].lo)}`).join(' ')}" fill="rgba(242,233,220,.10)"/>
+      <line x1="0" x2="${W}" y1="${ys(15)}" y2="${ys(15)}" stroke="rgba(159,195,178,.6)" stroke-dasharray="2 5" vector-effect="non-scaling-stroke"/>
+      <polyline points="${pts('basin')}" fill="none" stroke="#e8a35a" stroke-width="2.2" vector-effect="non-scaling-stroke"/>
+      <line x1="${xs(i)}" x2="${xs(i)}" y1="0" y2="${H}" stroke="#f2e9dc" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+      <circle cx="${xs(i)}" cy="${ys(h.basin)}" r="4" fill="#f2e9dc"/>`;
+  }
+  show(); setInterval(() => { i = (i + 1) % 24; show(); }, 1800);
+</script>
+</body>
+</html>

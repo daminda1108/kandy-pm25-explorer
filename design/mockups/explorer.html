@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kandy Air — explorer (mock-up A)</title>
+<link rel="stylesheet" href="tokens.css">
+<script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
+<style>
+  #scene { position: fixed; inset: 0; }
+  .labels { position: absolute; inset: 0; pointer-events: none; }
+  .lbl { position: absolute; left: 0; top: 0; font: 500 11px/1 var(--font-ui); color: var(--paper-2); white-space: nowrap;
+         text-shadow: 0 1px 6px rgba(0,0,0,.8); margin: -6px 0 0 8px; }
+  .lbl::before { content: ''; position: absolute; left: -8px; top: 3px; width: 4px; height: 4px; border-radius: 50%; background: var(--paper-2); }
+  .lbl.city { font: 400 italic 16px/1 var(--font-display); color: var(--paper); }
+  .vignette { position: fixed; inset: 0; pointer-events: none;
+              background: radial-gradient(ellipse at 50% 45%, rgba(15,13,11,0) 45%, rgba(15,13,11,.75) 100%); }
+  header { position: fixed; top: 18px; left: 24px; right: 24px; display: flex; align-items: center; gap: 16px; z-index: 6; }
+  .mark { font: 400 19px/1 var(--font-display); }
+  header nav { margin-left: auto; }
+  header nav a { color: var(--paper-2); text-decoration: none; font-size: 13px; margin-left: 22px; }
+  /* this-hour card */
+  .card { position: fixed; left: 24px; top: 70px; width: 320px; padding: 18px 20px 16px; z-index: 6; }
+  .card .when { display: flex; justify-content: space-between; align-items: baseline; }
+  .card .when .t { font: 400 30px/1 var(--font-display); }
+  .card .big { margin: 14px 0 2px; font: 600 46px/1 var(--font-ui); letter-spacing: -.02em; }
+  .card .big small { font: 400 15px var(--font-ui); color: var(--paper-3); margin-left: 4px; }
+  .card .sub { color: var(--paper-2); font-size: 13px; }
+  .scale { position: relative; height: 26px; margin: 16px 0 6px; }
+  .scale .ramp { position: absolute; left: 0; right: 0; top: 10px; height: 6px; border-radius: 6px;
+                 background: linear-gradient(90deg, var(--pm-5) 0%, var(--pm-15) 16.7%, var(--pm-25) 27.8%, var(--pm-35) 38.9%,
+                                             var(--pm-50) 55.6%, var(--pm-75) 83.3%, #642420 100%); opacity: .9; }
+  .scale .band { position: absolute; top: 6px; height: 14px; border: 1.5px solid var(--paper); border-radius: 8px; }
+  .scale .med { position: absolute; top: 2px; width: 2px; height: 22px; background: var(--paper); border-radius: 2px; }
+  .scale .who { position: absolute; top: 22px; font: 500 9px/1 var(--font-ui); color: var(--paper-3); transform: translateX(-50%); }
+  .split { display: flex; height: 8px; border-radius: 8px; overflow: hidden; margin: 18px 0 6px; }
+  .split .b { background: #b9a88f; } .split .l { background: var(--accent); }
+  .legend2 { display: flex; justify-content: space-between; font-size: 12px; color: var(--paper-2); }
+  .legend2 i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+  .card .foot { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+  /* drawer */
+  .drawer { position: fixed; right: 24px; top: 70px; width: 340px; bottom: 196px; padding: 0; z-index: 6; display: flex; flex-direction: column; }
+  .tabs { display: flex; gap: 2px; padding: 8px; border-bottom: 1px solid var(--ink-line); }
+  .tabs b { flex: 1; text-align: center; font: 500 12px/1 var(--font-ui); color: var(--paper-3); padding: 9px 0; border-radius: 8px; }
+  .tabs b.on { color: var(--paper); background: rgba(242,233,220,.08); }
+  .drawer .body { padding: 18px 20px; overflow: auto; }
+  .drawer h3 { font: 400 22px/1.2 var(--font-display); margin: 0 0 8px; }
+  .drawer p { color: var(--paper-2); font-size: 13.5px; margin: 0 0 14px; }
+  .drawer .kv { display: grid; grid-template-columns: 1fr auto; row-gap: 8px; font-size: 13px; margin-top: 10px; }
+  .drawer .kv span:nth-child(odd) { color: var(--paper-3); }
+  /* time bar */
+  .timebar { position: fixed; left: 24px; right: 24px; bottom: 20px; height: 160px; z-index: 6; padding: 14px 18px;
+             display: grid; grid-template-columns: 56px 1fr; grid-template-rows: 86px 40px; column-gap: 16px; }
+  .play { grid-row: 1 / span 2; width: 56px; height: 56px; border-radius: 50%; background: var(--paper); color: var(--ink-0);
+          display: grid; place-items: center; align-self: center; font-size: 18px; }
+  .day svg, .year canvas { width: 100%; height: 100%; display: block; }
+  .year { position: relative; }
+  .year .yl { position: absolute; top: 28px; font: 500 10px/1 var(--font-ui); color: var(--paper-3); }
+  .year .ext { position: absolute; top: 28px; font: 500 10px/1 var(--font-ui); color: var(--accent); letter-spacing: .06em; }
+  .labels { overflow: hidden; }
+  .legend { position: fixed; right: 24px; bottom: 196px; z-index: 6; display: none; }
+</style>
+</head>
+<body>
+<div class="mock-note" style="top:auto;bottom:186px;right:380px">mock-up A · explorer · real field, 7 Dec 2022</div>
+<div id="scene"></div>
+<div class="vignette"></div>
+<header>
+  <div class="mark">Kandy Air</div>
+  <span class="badge"><i></i>Anchored year · level calibrated to the CEA station</span>
+  <nav><a href="hero.html">Story</a><a href="#">Method</a><a href="#">Download</a></nav>
+</header>
+
+<section class="card glass">
+  <div class="when"><span class="eyebrow">Wed · 7 Dec 2022 · NE monsoon</span><span class="t num" id="t">07:30</span></div>
+  <div class="big num"><span id="v">54.6</span><small>µg/m³ valley average</small></div>
+  <div class="sub">City centre <b class="num" id="core">56</b> · 90 % range <span class="num" id="rng">18–92</span></div>
+  <div class="scale" id="scale">
+    <div class="ramp"></div><div class="band" id="band"></div><div class="med" id="med"></div>
+  </div>
+  <div style="height:10px"></div>
+  <div class="split"><div class="b" id="sb"></div><div class="l" id="sl"></div></div>
+  <div class="legend2"><span><i style="background:#b9a88f"></i>Arrived from outside <b class="num" id="pb">47%</b></span>
+                       <span><i style="background:var(--accent)"></i>Made in the valley <b class="num" id="pl">53%</b></span></div>
+  <div class="foot"><span class="badge">Stagnant air · shallow mixing</span><span class="badge">Episode: national haze</span></div>
+</section>
+
+<aside class="drawer glass">
+  <div class="tabs"><b class="on">Air mass</b><b>Weather</b><b>Point</b><b>Exposure</b><b>Data</b></div>
+  <div class="body">
+    <h3>Where today's air came from</h3>
+    <p>North-east monsoon air off the Indian subcontinent carried a heavy regional load into the valley overnight.
+       By morning the local rush added its own share on top, pooled under a shallow boundary layer.</p>
+    <svg id="stack" viewBox="0 0 300 120" style="width:100%;height:120px"></svg>
+    <div class="kv">
+      <span>Background (regional)</span><span class="num" id="kb">26.0 µg/m³</span>
+      <span>Local increment</span><span class="num" id="kl">28.6 µg/m³</span>
+      <span>Share local, 2019–23</span><span class="num">≈ 51 % (0.45–0.52)</span>
+    </div>
+    <p style="margin-top:14px;font-size:12px;color:var(--paper-3)">The split is a property of the method (a physical
+       cap on the background), not a measured share. Two station-based routes put it between 0.36 and 0.53.</p>
+  </div>
+</aside>
+
+<section class="timebar glass">
+  <div class="play">▶</div>
+  <div class="day"><svg id="day" viewBox="0 0 1000 86" preserveAspectRatio="none"></svg></div>
+  <div class="year"><canvas id="year"></canvas><div id="ylabels"></div></div>
+</section>
+
+<script type="module">
+  import { createValley, pmCss } from './valley.js';
+  const v = await createValley(document.getElementById('scene'),
+                               { camera: { x: 1.0, y: 8.2, z: 14.2, tx: 0.6, tz: -0.9, fov: 34 } });
+  const day = await fetch('assets/day.json').then((r) => r.json());
+  const years = await fetch('assets/years.json').then((r) => r.json());
+  const X = (x) => Math.min(100, Math.max(0, x / 90 * 100));   // scale axis 0–90 µg/m³
+
+  // WHO tick labels on the card scale
+  for (const w of [15, 35, 75]) {
+    const d = document.createElement('span'); d.className = 'who'; d.style.left = X(w) + '%'; d.textContent = w;
+    document.getElementById('scale').appendChild(d);
+  }
+
+  // day ribbon: interval band + median line + background, 24 hours
+  const dsvg = document.getElementById('day'), H = 86, W = 1000;
+  const xs = (i) => i / 23 * W, ys = (p) => H - 4 - p / 75 * (H - 20);
+  const pts = (k) => day.hours.map((h, i) => `${xs(i)},${ys(h[k])}`).join(' ');
+  dsvg.innerHTML = `
+    <polygon points="${pts('hi')} ${day.hours.map((h, i) => `${xs(23 - i)},${ys(day.hours[23 - i].lo)}`).join(' ')}"
+             fill="rgba(242,233,220,.10)"/>
+    <polyline points="${pts('B')}" fill="none" stroke="#b9a88f" stroke-width="1.5" stroke-dasharray="4 4"/>
+    <polyline points="${pts('basin')}" fill="none" stroke="#e8a35a" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+    <line id="now" x1="0" x2="0" y1="0" y2="${H}" stroke="#f2e9dc" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+    ${[0, 6, 12, 18, 23].map((i) => `<text x="${xs(i) + 4}" y="12" fill="rgba(242,233,220,.45)" font-size="11" font-family="Inter">${day.hours[i].t.slice(11)}</text>`).join('')}
+    <line x1="0" x2="${W}" y1="${ys(15)}" y2="${ys(15)}" stroke="rgba(159,195,178,.5)" stroke-width="1" stroke-dasharray="2 6" vector-effect="non-scaling-stroke"/>
+    <text x="4" y="${ys(15) + 13}" fill="rgba(159,195,178,.85)" font-size="11" font-family="Inter">WHO 24-hour guideline · 15</text>`;
+
+  // year ribbon: one coloured tick per day, extension years hatched/dimmed
+  const cv = document.getElementById('year'), ctx = cv.getContext('2d');
+  function drawYears() {
+    const w = cv.clientWidth, h = cv.clientHeight; cv.width = w * 2; cv.height = h * 2; ctx.scale(2, 2);
+    const n = years.length, bw = w / n;
+    years.forEach((d, i) => {
+      ctx.fillStyle = pmCss(d.v); ctx.globalAlpha = d.tier === 'extension' ? 0.45 : 1;
+      ctx.fillRect(i * bw, 4, Math.ceil(bw), 18);
+    });
+    ctx.globalAlpha = 1;
+    const sel = years.findIndex((d) => d.d === day.date);
+    ctx.fillStyle = '#f2e9dc'; ctx.fillRect(sel * bw - 1, 0, 2, 26);
+    const lab = document.getElementById('ylabels'); lab.innerHTML = '';
+    let lastY = '', firstExt = -1;
+    years.forEach((d, i) => {
+      const y = d.d.slice(0, 4);
+      if (d.tier === 'extension') { if (firstExt < 0) firstExt = i; return; }
+      if (y !== lastY) { const s = document.createElement('span'); s.className = 'yl'; s.style.left = (i / n * 100) + '%'; s.textContent = y; lab.appendChild(s); lastY = y; }
+    });
+    const e = document.createElement('span'); e.className = 'ext'; e.style.left = (firstExt / n * 100) + '%';
+    e.textContent = '2024 – 2026 · EXTENSION, LEVEL UNCERTAIN'; lab.appendChild(e);
+  }
+  drawYears();
+
+  let i = 7;
+  function show() {
+    const h = day.hours[i];
+    v.setField(h.q50);
+    const core = h.q50[Math.round((7.2906 - 7.223) / 0.009) * 16 + Math.round((80.6337 - 80.566) / 0.00906)];
+    document.getElementById('t').textContent = h.t.slice(11);
+    document.getElementById('v').textContent = h.basin.toFixed(1);
+    document.getElementById('core').textContent = core.toFixed(0);
+    document.getElementById('rng').textContent = `${h.lo.toFixed(0)}–${h.hi.toFixed(0)}`;
+    const band = document.getElementById('band');
+    band.style.left = X(h.lo) + '%'; band.style.width = (X(h.hi) - X(h.lo)) + '%';
+    document.getElementById('med').style.left = `calc(${X(h.basin)}% - 1px)`;
+    const local = Math.max(h.basin - h.B, 0), pb = h.B / (h.B + local) * 100;
+    document.getElementById('sb').style.width = pb + '%'; document.getElementById('sl').style.width = (100 - pb) + '%';
+    document.getElementById('pb').textContent = pb.toFixed(0) + '%'; document.getElementById('pl').textContent = (100 - pb).toFixed(0) + '%';
+    document.getElementById('kb').textContent = h.B.toFixed(1) + ' µg/m³'; document.getElementById('kl').textContent = local.toFixed(1) + ' µg/m³';
+    const nx = i / 23 * 1000; const ln = document.getElementById('now'); ln.setAttribute('x1', nx); ln.setAttribute('x2', nx);
+    // stacked background / local for the day
+    const sx = (k) => k / 23 * 300, sy = (p) => 116 - p / 80 * 110;
+    const bTop = day.hours.map((d, k) => `${sx(k)},${sy(d.B)}`).join(' ');
+    const tTop = day.hours.map((d, k) => `${sx(k)},${sy(Math.max(d.basin, d.B))}`).join(' ');
+    document.getElementById('stack').innerHTML = `
+      <polygon points="0,116 ${bTop} 300,116" fill="#b9a88f" opacity=".75"/>
+      <polygon points="${tTop} ${day.hours.map((d, k) => `${sx(23 - k)},${sy(day.hours[23 - k].B)}`).join(' ')}" fill="#e8a35a" opacity=".85"/>
+      <line x1="${sx(i)}" x2="${sx(i)}" y1="0" y2="116" stroke="#f2e9dc" stroke-width="1"/>`;
+  }
+  show();
+  setInterval(() => { i = (i + 1) % 24; show(); }, 1800);
+</script>
+</body>
+</html>
