@@ -479,9 +479,10 @@ function buildForecastCard() {
   box.innerHTML =
     `<summary>What stands behind this forecast, and what does not</summary>`
     + `<div class="fe-body">`
-    + `<p><b>No part of this forecast has been verified in Kandy.</b> There is no public `
-    + `in-basin monitoring station to score it against, so it is shown as a `
-    + `demonstration of the method rather than as a checked product. `
+    + `<p><b>No part of this forecast has been verified in Kandy yet.</b> The one in-basin `
+    + `station (the Central Environmental Authority's) is used here under an academic-use `
+    + `agreement still being arranged, so the forecast is not yet scored against it and is `
+    + `shown as a demonstration of the method rather than as a checked product. `
     + `<a href="method.html" target="_blank">How it works</a></p>`
     + `<p class="fe-h">${ev.title || 'Held-out validation'}</p>`
     + `<p class="note">${ev.protocol || ''}</p>`

@@ -54,7 +54,7 @@
   "rmse": 5.21,
   "level_bias_pct": -14.6
  },
- "pedigree": "Recipe validated at Medellín against 15 withheld stations (F-M2 backtest, clean temporal split trained <=2022, scored on 2023: forecast RMSE 5.71 vs 24h-persistence 6.49, skill +0.120). Kandy has no public in-basin station, so this forecast is a DEMONSTRATION shown with that borrowed pedigree and NO local self-check.",
+ "pedigree": "Recipe validated at Medellín against 15 withheld stations (F-M2 backtest, clean temporal split trained <=2022, scored on 2023: forecast RMSE 5.71 vs 24h-persistence 6.49, skill +0.120). Kandy's one in-basin station (CEA) is used under an academic-use agreement still being arranged, so this forecast is a DEMONSTRATION shown with that borrowed pedigree and NO local self-check yet.",
  "regional_note": "The three Sri Lankan stations logged alongside are 25-40 km outside the basin. They sample the regional/transboundary background (about half of Kandy PM2.5; local fraction ~0.5), so they are context for B(t) — not a check on the Kandy field.",
  "driver_note": "Drivers from the NASA GMAO CFAPI forecast (keyless): chm v1 PM25 -> c_prior, met x1 U/V/T/ZPBL; mean of the two 0.25 deg cells covering the basin.",
  "evidence": {

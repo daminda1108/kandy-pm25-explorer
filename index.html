@@ -7,7 +7,7 @@
   <meta name="description" content="Hourly 1 km PM2.5 fields for Kandy, Sri Lanka (2019–2026): heatmap, terrain wind, uncertainty, background/local split, weather conditions and documented haze events." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=1791775820" />
+  <link rel="stylesheet" href="css/style.css?v=1793116772" />
 </head>
 <body>
   <div id="loading">
@@ -54,7 +54,7 @@
 
   <div class="story-hero">
     <p class="story-eyebrow">Central Province · Sri Lanka</p>
-    <h2 class="story-title">A city of 400,000 people<br>with no air quality monitor.</h2>
+    <h2 class="story-title">A city of 100,000, with 390,000 arriving each weekday,<br>and one air quality monitor.</h2>
     <p class="story-lede">Kandy sits in an enclosed valley about 500 m up, ringed by ridges
       that trap what the city emits and, for part of the year, hold haze that arrived from
       halfway across the Indian Ocean. Nobody has ever published a continuous record of its
@@ -66,9 +66,10 @@
   <article class="story-step" data-step="1">
     <p class="story-num">01 · The problem</p>
     <h3>You cannot validate a map of a place with no measurements.</h3>
-    <p>Standard methods learn from a city's own monitors. Kandy has none that are public and
-      continuous, so there is nothing to learn from and, less obviously, nothing to check
-      the answer against. A confident-looking map of an unmonitored city is just a confident
+    <p>Standard methods learn from a city's own monitors. Kandy has one: the Central
+      Environmental Authority's regulatory station, with a fifteen-month gap in 2021–22. One
+      point can calibrate a level and a daily cycle, but it cannot teach a map, and it is the
+      only thing to check the answer against. A confident-looking map of an unmonitored city is just a confident
       -looking map.</p>
   </article>
 
@@ -82,7 +83,7 @@
     <div class="story-stat-row">
       <div class="story-stat"><b>10</b><span>analogue cities, 5 countries</span></div>
       <div class="story-stat"><b>0.94–1.00</b><span>seasonal cycle reproduced</span></div>
-      <div class="story-stat"><b>6 of 9</b><span>cities with resolvable spatial skill</span></div>
+      <div class="story-stat"><b>ρ ≈ 0.2–0.3</b><span>spatial skill ceiling, so the map is indicative</span></div>
     </div>
   </article>
 
@@ -118,11 +119,11 @@
   <article class="story-step" data-step="5">
     <p class="story-num">05 · The honest limit</p>
     <h3>The street-scale pattern is physics, not measurement.</h3>
-    <p>Where the pollution sits <em>within</em> the valley is imposed from a terrain and
-      traffic model, and its hour-to-hour sharpness has never been calibrated against
-      anything local. Five independent tests say that pattern cannot be learned from public
-      data either. One monitor inside the basin would change that, and it would settle the
-      background question too.</p>
+    <p>Where the pollution sits <em>within</em> the valley is imposed: a satellite level
+      surface times a terrain-confinement term, and its hour-to-hour sharpness has never been
+      calibrated against anything local. Independent tests say that pattern cannot be learned
+      from public data either, and the one station in the basin cannot test a map. Several
+      monitors spread across the valley would.</p>
     <a class="story-cta" href="#" data-goto="explore">Open the explorer →</a>
   </article>
 </section>
@@ -243,6 +244,6 @@
     <div id="credits" class="credits"></div>
   </footer>
 
-  <script type="module" src="js/app.js?v=1791775820"></script>
+  <script type="module" src="js/app.js?v=1793116772"></script>
 </body>
 </html>
