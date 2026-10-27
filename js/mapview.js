@@ -6,7 +6,7 @@
 // wind animation registered — no per-layer re-projection needed. The outer
 // element (#mapstack) is the fixed, untransformed viewport we measure against.
 
-import { clamp } from './util.js?v=1793120334';
+import { clamp } from './util.js?v=1793121195';
 
 export class MapView {
   constructor(outer, inner, bbox, onChange) {
@@ -63,7 +63,7 @@ export class MapView {
 
   _down(e) {
     if (!this.outer.contains(e.target)) return;
-    if (e.target.closest('.zoom-ctl, .point-card')) return;   // don't drag on controls
+    if (e.target.closest('.zoom-ctl, .point-card, .v3d')) return;   // don't drag on controls or the 3-D stage
     this._pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (this._pts.size === 1) {
       this._drag = { x: e.clientX, y: e.clientY, tx: this.tx, ty: this.ty, moved: 0 };

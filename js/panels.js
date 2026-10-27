@@ -3,8 +3,8 @@
 // decomposition split, exposure/health, click-a-pixel point query.
 // Every numeric estimate carries its interval.
 
-import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1793120334';
-import { zoneGrid, zoneStats, relWords } from './zones.js?v=1793120334';
+import { $, el, fmt, fmtCI, clamp, fitCanvas, smoothPath, compass } from './util.js?v=1793121195';
+import { zoneGrid, zoneStats, relWords } from './zones.js?v=1793121195';
 
 let store, seekCb, curField, city;
 let LT = 5.5 * 3600;
@@ -413,7 +413,7 @@ async function drawDecomp(f) {
       + `split is identified annually, not hourly.`;
   $('#decomp-note').innerHTML =
     (annLine ? annLine + '<br>' : '') + hourLine
-    + ` <a href="method.html#split" target="_blank">why</a>`;
+    + ` <a href="method.html#claims" target="_blank">why</a>`;
 }
 
 // ── exposure & health (intervals always shown) ────────────────────────────────
@@ -450,7 +450,7 @@ async function drawHealth(year) {
   } else {
     html += `<p class="hnote">No attributable-death estimate is shown: a defensible one needs
       age-specific mortality, a settled level and propagated uncertainty, which this
-      model does not yet have. <a href="method.html#physics-status" target="_blank">why</a></p>`;
+      model does not yet have. <a href="method.html#health" target="_blank">why</a></p>`;
   }
   $('#health-body').innerHTML = html;
 }

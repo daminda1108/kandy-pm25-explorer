@@ -1,18 +1,19 @@
 // app.js — PM2.5 Explorer orchestrator (city-aware: Kandy default, Medellín
 // proving ground). All per-city behaviour comes from cities.js.
 
-import { $, el, fmt, fmtCI, clamp } from './util.js?v=1793120334';
-import { activeCity } from './cities.js?v=1793120334';
-import { Store, STORE_FCST } from './store.js?v=1793120334';
-import { colourMode, paintField, paintColourbar } from './field.js?v=1793120334';
-import { WindLayer, windWords } from './wind.js?v=1793120334';
-import { Timeline } from './timeline.js?v=1793120334';
-import { Overlay } from './overlay.js?v=1793120334';
-import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1793120334';
-import { initShowcase } from './showcase.js?v=1793120334';
-import { MapView } from './mapview.js?v=1793120334';
-import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1793120334';
-import { zoneGrid, zoneStats, relWords, ZONES } from './zones.js?v=1793120334';
+import { $, el, fmt, fmtCI, clamp } from './util.js?v=1793121195';
+import { activeCity } from './cities.js?v=1793121195';
+import { Store, STORE_FCST } from './store.js?v=1793121195';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1793121195';
+import { WindLayer, windWords } from './wind.js?v=1793121195';
+import { Timeline } from './timeline.js?v=1793121195';
+import { Overlay } from './overlay.js?v=1793121195';
+import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1793121195';
+import { initShowcase } from './showcase.js?v=1793121195';
+import { MapView } from './mapview.js?v=1793121195';
+import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1793121195';
+import { Valley3D, webglOK } from './valley3d.js?v=1793121195';
+import { zoneGrid, zoneStats, relWords, ZONES } from './zones.js?v=1793121195';
 
 const MAP = 840;                    // internal map canvas resolution (square)
 const CITY = activeCity();
@@ -84,6 +85,7 @@ async function boot() {
   wireControls();
   wireDatetime();
   wireSurfaces();
+  setup3D();
   initPanels(store, (y, gi) => seek(y, gi), CITY);
 
   // Load the CURRENT year first and paint; the rest stream in behind it. Eagerly
@@ -209,6 +211,9 @@ function setSurface(name, { push = true } = {}) {
   m.hidden = (s === 'story');
   for (const sel of ['.datetime-bar', '.timeline-wrap'])
     for (const n of document.querySelectorAll(sel)) n.hidden = (s === 'story');
+  // 3-D scenes run only where they are visible (phase 3)
+  if (v3) { if (s === 'explore' && state.dim === '3d') v3.resume(); else v3.pause(); }
+  if (s === 'story') openStory3D(); else if (storyCtl) storyCtl.pause();
   if (s === 'story') {
     window.scrollTo({ top: 0, behavior: 'auto' });
     // The element was hidden in this tick, so it has no layout yet: an
@@ -317,6 +322,7 @@ async function restoreFromHash() {
   const tier = p.get('tier');
   if (tier === 'vand') state.tier = 'vand';
   if (p.get('v') === 'insights') setSurface('insights', { push: false });
+  if (p.get('v') === 'story') setSurface('story', { push: false });
   // locate the nearest shipped hour to the requested timestamp
   let best = null;
   for (const y of yearKeys()) {                   // includes the forecast tier
@@ -389,6 +395,7 @@ function render(f) {
   if (state.pattern === false) q = new Float32Array(q.length).fill(state.showUQ ? f.basin95 : f.basin);
   const cm = colourMode(state.pattern === false ? q : f.q50, state.scaleMode);   // range keyed to the median field
   paintField($('#cv-field'), q, cm, store.meta.grid.n_lat);
+  if (v3 && state.dim === '3d') v3.setField(q, store.meta.grid);
   overlay.draw();
   if (showcase) showcase.drawStations();
   paintColourbar($('#colourbar'), cm);
@@ -442,6 +449,60 @@ function render(f) {
   }
   const ev = $('#fcst-evidence');
   if (ev) ev.style.display = isFcst ? '' : 'none';
+}
+
+// ── 3-D valley stage (redesign phase 3) ─────────────────────────────────────
+// A view of the SAME field: the engine and the numbers are unchanged; only the drawing differs. Falls back to the
+// 2-D map when WebGL is missing (the switch is then hidden). The choice is remembered per viewer.
+let v3 = null, storyCtl = null, terrainP = null;
+const getTerrain = () => (terrainP ||= getJSONsafe(`${store.base}/static/terrain3d.json`));
+async function getJSONsafe(url) { try { const r = await fetch(url); return r.ok ? r.json() : null; } catch { return null; } }
+
+function setup3D() {
+  const seg = $('#dim-seg');
+  if (!seg) return;
+  if (!webglOK()) { seg.hidden = true; state.dim = '2d'; return; }
+  let want = innerWidth >= 1000 ? '3d' : '2d';
+  try { want = localStorage.getItem('kandy.dim') || want; } catch { /* default */ }
+  for (const b of seg.querySelectorAll('button')) b.addEventListener('click', () => setDim(b.dataset.dim));
+  setDim(want);
+}
+
+async function setDim(dim) {
+  state.dim = dim;
+  try { localStorage.setItem('kandy.dim', dim); } catch { /* storage may be blocked */ }
+  for (const b of document.querySelectorAll('#dim-seg button')) b.classList.toggle('active', b.dataset.dim === dim);
+  $('.v-stage').classList.toggle('is-3d', dim === '3d');
+  if (dim === '3d') {
+    if (!v3) {
+      const t = await getTerrain();
+      if (!t) { setDim('2d'); $('#dim-seg').hidden = true; return; }
+      const host = $('#v3d');
+      v3 = new Valley3D(host, { terrain: t, meta: store.meta, camera: innerWidth >= 1000 ? 'explorer' : 'overview' });
+      // a click (not a drag) on the 3-D terrain answers in the Point tab
+      let down = null;
+      host.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; });
+      host.addEventListener('pointerup', (e) => {
+        if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return;
+        const ll = v3.pick(e.clientX, e.clientY);
+        if (ll && state.cur) { state.pin = { lat: ll[1], lon: ll[0] }; pointQuery(ll[1], ll[0]); }
+      });
+    }
+    $('#point-card').hidden = true;
+    v3.resume();
+    if (state.cur) render(state.cur);
+  } else if (v3) {
+    v3.pause();
+  }
+  window.dispatchEvent(new Event('resize'));        // let the 2-D map and charts refit
+}
+
+async function openStory3D() {
+  if (storyCtl) { storyCtl.resume(); return; }
+  const t = await getTerrain();
+  if (!t) return;
+  const { initStory } = await import('./story3d.js?v=1793121195');
+  storyCtl = await initStory(store, t);
 }
 
 // "Where in the valley?" — zone readout under the this-hour card

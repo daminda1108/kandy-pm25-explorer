@@ -7,9 +7,10 @@
   <meta name="description" content="Hourly 1 km PM2.5 fields for Kandy, Sri Lanka (2019–2026): heatmap, terrain wind, uncertainty, background/local split, weather conditions and documented haze events." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/tokens.css?v=1793120334" />
-  <link rel="stylesheet" href="css/style.css?v=1793120334" />
-  <link rel="stylesheet" href="css/valley.css?v=1793120334" />
+  <link rel="stylesheet" href="css/tokens.css?v=1793121195" />
+  <link rel="stylesheet" href="css/style.css?v=1793121195" />
+  <script type="importmap">{ "imports": { "three": "./js/vendor/three.module.min.js" } }</script>
+  <link rel="stylesheet" href="css/valley.css?v=1793121195" />
 </head>
 <body class="valley">
   <div id="loading">
@@ -44,6 +45,7 @@
      city need modelling at all, and how much of this should you believe".
      Every figure here is linked to the evidence that produced it. -->
 <section id="story" class="story" hidden>
+  <div id="story-scene" class="story-scene" aria-hidden="true"><div id="story-caption" class="story-caption"></div></div>
 
   <div class="story-hero">
     <p class="story-eyebrow">Central Province · Sri Lanka</p>
@@ -125,6 +127,7 @@
     <section class="map-col v-stage">
       <div id="mapstack" class="mapstack">
         <div id="mappan" class="mappan"></div>
+        <div id="v3d" class="v3d" aria-label="3-D view of the Kandy valley with this hour's PM2.5 draped on the terrain"></div>
         <div class="zoom-ctl">
           <button id="zoom-in" title="Zoom in">+</button>
           <button id="zoom-out" title="Zoom out">&minus;</button>
@@ -146,6 +149,10 @@
       </div>
 
       <div class="map-foot v-legend">
+        <div class="seg" id="dim-seg" role="group" aria-label="View">
+          <button class="seg-btn" data-dim="3d" title="The valley in 3-D (terrain relief ×2.4); drag to turn, scroll to zoom">3-D valley</button>
+          <button class="seg-btn" data-dim="2d" title="Flat map with roads, layers, zoom and the floating point card">Flat map</button>
+        </div>
         <div class="colourbar-wrap">
           <div class="cb-box">
             <canvas id="colourbar" width="260" height="12"></canvas>
@@ -251,7 +258,7 @@
   </div>
   </section>
 
-  <script type="module" src="js/shell.js?v=1793120334"></script>
-  <script type="module" src="js/app.js?v=1793120334"></script>
+  <script type="module" src="js/shell.js?v=1793121195"></script>
+  <script type="module" src="js/app.js?v=1793121195"></script>
 </body>
 </html>

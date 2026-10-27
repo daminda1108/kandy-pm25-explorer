@@ -37,7 +37,9 @@ html:has(body.valley) { background: #0f0d0b; }
 /* ── explore: stage + drawer ─────────────────────────────────────────────────── */
 .valley main { max-width: none; margin: 0; padding: 0; gap: 0; }
 .valley main.view-explore { position: fixed; top: var(--topH); bottom: var(--barH); left: 0; right: 0;
-  display: grid; grid-template-columns: minmax(0, 1fr) var(--drawerW); background: var(--ink-0); }
+  display: grid; grid-template-columns: minmax(0, 1fr) var(--drawerW); grid-template-rows: minmax(0, 1fr);
+  background: var(--ink-0); }
+.valley main.view-explore .v-stage { height: 100%; }
 .valley main.view-explore .v-drawer { align-self: stretch; height: 100%; }
 .valley .v-stage { position: relative; overflow: hidden; display: grid; place-items: center;
   padding: 20px 24px 20px 352px;
@@ -49,7 +51,7 @@ html:has(body.valley) { background: #0f0d0b; }
 /* this-hour card */
 .valley .v-card { position: absolute; top: 20px; left: 20px; width: 312px; z-index: 6; padding: 18px 20px 16px;
   background: rgba(23, 20, 15, .72); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
-  border: 1px solid var(--ink-line); border-radius: var(--r-2); max-height: calc(100% - 210px); overflow: auto; }
+  border: 1px solid var(--ink-line); border-radius: var(--r-2); max-height: calc(100% - 250px); overflow: auto; }
 .valley .map-title { margin: 0; min-height: 0; font-size: 13px; color: var(--paper); }
 .valley .hc-when { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .valley .hc-when .eyebrow { line-height: 1.35; }
@@ -168,6 +170,44 @@ html:has(body.valley) { background: #0f0d0b; }
 .valley .story-cta { background: var(--paper); color: var(--ink-0); border-radius: 99px; padding: 11px 18px;
   text-decoration: none; display: inline-block; font: 500 14px var(--font-ui); }
 
+/* ── 3-D stage (phase 3) ─────────────────────────────────────────────────────── */
+.valley .v3d { position: absolute; inset: 0; display: none; z-index: 2; cursor: grab; touch-action: none; }
+.valley .v3d:active { cursor: grabbing; }
+.valley .v3d-canvas { display: block; }
+.valley .v3d-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.valley .v3d-lbl { position: absolute; left: 0; top: 0; font: 500 11px/1 var(--font-ui); color: var(--paper-2);
+  white-space: nowrap; text-shadow: 0 1px 6px rgba(0, 0, 0, .85); margin: -6px 0 0 8px; transition: opacity .2s; }
+.valley .v3d-lbl::before { content: ''; position: absolute; left: -8px; top: 3px; width: 4px; height: 4px; border-radius: 50%;
+  background: var(--paper-2); }
+.valley .v3d-lbl.city { font: 400 italic 17px/1 var(--font-display); color: var(--paper); }
+.valley .v-stage.is-3d { padding: 0; }
+.valley .v-stage.is-3d .mapstack { width: 100%; height: 100%; aspect-ratio: auto; border-radius: 0; border: 0;
+  box-shadow: none; }
+.valley .v-stage.is-3d .v3d { display: block; }
+.valley .v-stage.is-3d .mappan, .valley .v-stage.is-3d .zoom-ctl, .valley .v-stage.is-3d .point-card { display: none; }
+.valley .v-stage.is-3d .wind-legend { z-index: 3; left: auto; right: 20px; bottom: 20px; }
+.valley #dim-seg { align-self: stretch; display: flex; }
+.valley #dim-seg .seg-btn { flex: 1; }
+.valley #dim-seg[hidden] { display: none; }
+
+/* ── story: sticky 3-D scene behind the text (phase 3) ───────────────────────── */
+.valley .story-scene { display: none; }
+.valley .story.has-3d { max-width: none; padding: 0; margin: 0; }
+.valley .story.has-3d .story-scene { display: block; position: sticky; top: var(--topH); height: calc(100vh - var(--topH));
+  margin-bottom: calc(-100vh + var(--topH)); z-index: 0; overflow: hidden; }
+.valley .story.has-3d .story-scene::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, rgba(15, 13, 11, .9) 0%, rgba(15, 13, 11, .55) 34%, rgba(15, 13, 11, 0) 58%),
+              linear-gradient(180deg, rgba(15, 13, 11, 0) 70%, rgba(15, 13, 11, .75) 100%); }
+.valley .story-caption { position: absolute; right: 28px; bottom: 26px; z-index: 3; display: flex; flex-direction: column;
+  align-items: flex-end; gap: 4px; text-align: right; max-width: 380px; }
+.valley .story-caption span { font: 400 italic 16px/1.35 var(--font-display); color: var(--paper); }
+.valley .story-caption b { font: 600 28px/1 var(--font-ui); color: var(--paper); }
+.valley .story-caption b small { font: 400 12px var(--font-ui); color: var(--paper-3); }
+.valley .story.has-3d .story-hero, .valley .story.has-3d .story-step { position: relative; z-index: 1; max-width: 560px;
+  margin-left: clamp(20px, 7vw, 120px); border-top: 0; }
+.valley .story.has-3d .story-step { min-height: 92vh; display: flex; flex-direction: column; justify-content: center; }
+.valley .story.has-3d .story-hero { min-height: calc(100vh - var(--topH)); }
+
 /* ── narrower screens ────────────────────────────────────────────────────────── */
 @media (max-width: 1180px) { .valley { --drawerW: 340px; } .valley .v-claim { display: none; } }
 @media (max-width: 999px) {
@@ -189,5 +229,12 @@ html:has(body.valley) { background: #0f0d0b; }
   .valley .timeline-wrap { height: 54px; flex: none; }
   .valley main.view-insights { padding: calc(var(--topH) + 12px) 12px 40px; }
   .valley main.view-insights .v-drawer { grid-template-columns: 1fr; }
+  .valley .v-stage.is-3d { padding: 12px; }
+  .valley .v-stage.is-3d .mapstack { height: 62vh; border-radius: 14px; border: 1px solid var(--ink-line); }
+  .valley .story.has-3d .story-scene::after { background: linear-gradient(180deg, rgba(15, 13, 11, .2), rgba(15, 13, 11, .55)); }
+  .valley .story.has-3d .story-hero, .valley .story.has-3d .story-step { margin: 0 12px; padding: 22px 18px;
+    background: rgba(15, 13, 11, .82); border-radius: 14px; min-height: 0; margin-bottom: 70vh; }
+  .valley .story.has-3d .story-hero { margin-top: 30vh; }
+  .valley .story-caption { left: 14px; right: 14px; bottom: 14px; align-items: flex-start; text-align: left; }
 }
 @media (max-width: 520px) { .valley .surf-btn[data-surface="insights"] { display: none; } }
