@@ -7,7 +7,8 @@
   <meta name="description" content="Hourly 1 km PM2.5 fields for Kandy, Sri Lanka (2019–2026): heatmap, terrain wind, uncertainty, background/local split, weather conditions and documented haze events." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=1793116772" />
+  <link rel="stylesheet" href="css/tokens.css?v=1793119389" />
+  <link rel="stylesheet" href="css/style.css?v=1793119389" />
 </head>
 <body>
   <div id="loading">
@@ -182,9 +183,12 @@
       <div class="controls">
         <label class="tog"><input type="checkbox" id="uq" /> 90% upper bound</label>
         <span class="spacer"></span>
+        <label class="tog" title="The within-valley pattern is a physical assumption (satellite surface × terrain), not a measured map. Off: only the anchored valley level is drawn."><input type="checkbox" id="layer-pattern" checked /> pattern <span class="ev ev-indicative">indicative</span></label>
+        <label class="tog" title="Where emissions are likely: VIIRS night-time lights (2022) and OpenStreetMap bus stations (B), markets (M), railway stations (R). Sources, not concentrations."><input type="checkbox" id="layer-sources" /> sources <span class="ev ev-measured">measured</span></label>
+        <label class="tog" title="Elevation contours every 100 m and the valley floor below 500 m, from a 100 m terrain model."><input type="checkbox" id="layer-terrain" checked /> terrain <span class="ev ev-measured">measured</span></label>
+        <label class="tog" title="Traffic-emission surface built from road-network centrality: a model proxy, not a measurement."><input type="checkbox" id="layer-emission" /> traffic proxy <span class="ev ev-modelled">modelled</span></label>
         <label class="tog"><input type="checkbox" id="layer-roads" checked /> roads</label>
         <label class="tog"><input type="checkbox" id="layer-water" checked /> water</label>
-        <label class="tog"><input type="checkbox" id="layer-emission" checked /> emission</label>
         <label class="tog"><input type="checkbox" id="layer-landmarks" checked /> labels</label>
       </div>
 
@@ -244,6 +248,6 @@
     <div id="credits" class="credits"></div>
   </footer>
 
-  <script type="module" src="js/app.js?v=1793116772"></script>
+  <script type="module" src="js/app.js?v=1793119389"></script>
 </body>
 </html>

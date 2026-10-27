@@ -6,7 +6,7 @@
 // zero-ground-data tier (Tv,Tv05,Tv95 — Medellín), the SAME P_local reconstructs
 // that tier with the alternative anchors (identical pattern by construction).
 
-import { getJSON, getGzip } from './util.js?v=1791715454';
+import { getJSON, getGzip } from './util.js?v=1793119389';
 
 // synthetic "year" key for the forecast tier (see initForecast)
 export const STORE_FCST = 'F';
@@ -38,6 +38,10 @@ export class Store {
     this.static.fields = await getJSON(`${this.base}/static/fields.json`);
     this.static.layers = await getJSON(`${this.base}/static/layers.json`);
     this.static.emission = await getJSON(`${this.base}/static/emission.json`);
+    // measured context layers (redesign phase 1): optional, so a city without them still loads
+    for (const k of ['sources', 'terrain']) {
+      try { this.static[k] = await getJSON(`${this.base}/static/${k}.json`); } catch { this.static[k] = null; }
+    }
     this.static.hillshade = await this._loadImage(`${this.base}/static/hillshade.png`);
     return this;
   }

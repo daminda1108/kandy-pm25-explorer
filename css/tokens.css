@@ -1,0 +1,45 @@
+/* tokens.css — Kandy Air design system, direction A "The Valley" (redesign phase 1, 2026-10-27).
+   Approved from design/mockups. Display + long-form: Fraunces / Source Serif 4. UI + figures: Inter (tabular). */
+:root {
+  /* ink & paper: warm, not slate */
+  --ink-0: #0f0d0b;
+  --ink-1: #17140f;
+  --ink-2: #221e18;
+  --ink-line: rgba(242, 233, 220, 0.12);
+  --ink-line-2: rgba(242, 233, 220, 0.22);
+  --paper: #f2e9dc;
+  --paper-2: rgba(242, 233, 220, 0.76);
+  --paper-3: rgba(242, 233, 220, 0.5);
+  --accent: #e8a35a;          /* lamp-light amber, sparingly */
+  --cool: #8fb3a8;            /* monsoon green-grey */
+
+  /* evidence colours (badges): measured / anchored / indicative / modelled */
+  --ev-measured: #8fb3a8;
+  --ev-anchored: #b9cde0;
+  --ev-indicative: #e8a35a;
+  --ev-modelled: #c99a8a;
+
+  /* PM2.5 scale anchored to WHO 2021 values (µg/m³) */
+  --pm-5: #9fc3b2; --pm-15: #e9e1b4; --pm-25: #efc77a; --pm-35: #e59a52; --pm-50: #c9653a; --pm-75: #8e3a2c;
+
+  --font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+  --font-serif: 'Source Serif 4', 'Iowan Old Style', Georgia, serif;
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --r-1: 6px; --r-2: 12px; --r-3: 20px;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  --blur: saturate(140%) blur(14px);
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --measure: 68ch;
+}
+.num { font-variant-numeric: tabular-nums lining-nums; }
+.eyebrow { font: 500 11px/1.2 var(--font-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--paper-3); }
+.ev { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 99px;
+      font: 500 11px/1.5 var(--font-ui); letter-spacing: .02em; border: 1px solid var(--ink-line-2); color: var(--paper-2);
+      white-space: nowrap; }
+.ev::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.ev-measured { color: var(--ev-measured); }
+.ev-anchored { color: var(--ev-anchored); }
+.ev-indicative { color: var(--ev-indicative); }
+.ev-modelled { color: var(--ev-modelled); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

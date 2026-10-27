@@ -1,17 +1,17 @@
 // app.js — PM2.5 Explorer orchestrator (city-aware: Kandy default, Medellín
 // proving ground). All per-city behaviour comes from cities.js.
 
-import { $, el, fmt, fmtCI, clamp } from './util.js?v=1791715454';
-import { activeCity } from './cities.js?v=1791715454';
-import { Store, STORE_FCST } from './store.js?v=1791715454';
-import { colourMode, paintField, paintColourbar } from './field.js?v=1791715454';
-import { WindLayer, windWords } from './wind.js?v=1791715454';
-import { Timeline } from './timeline.js?v=1791715454';
-import { Overlay } from './overlay.js?v=1791715454';
-import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1791715454';
-import { initShowcase } from './showcase.js?v=1791715454';
-import { MapView } from './mapview.js?v=1791715454';
-import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1791715454';
+import { $, el, fmt, fmtCI, clamp } from './util.js?v=1793119389';
+import { activeCity } from './cities.js?v=1793119389';
+import { Store, STORE_FCST } from './store.js?v=1793119389';
+import { colourMode, paintField, paintColourbar } from './field.js?v=1793119389';
+import { WindLayer, windWords } from './wind.js?v=1793119389';
+import { Timeline } from './timeline.js?v=1793119389';
+import { Overlay } from './overlay.js?v=1793119389';
+import { initPanels, updatePanels, pointQuery, clearPin } from './panels.js?v=1793119389';
+import { initShowcase } from './showcase.js?v=1793119389';
+import { MapView } from './mapview.js?v=1793119389';
+import { downloadPNG, downloadFieldCSV, downloadPointCSV } from './download.js?v=1793119389';
 
 const MAP = 840;                    // internal map canvas resolution (square)
 const CITY = activeCity();
@@ -67,7 +67,8 @@ async function boot() {
   hillCtx = $('#cv-hill').getContext('2d');
   wind = new WindLayer($('#cv-wind'));
   overlay = new Overlay($('#cv-vec'), bbox);
-  overlay.setData(store.static.layers, store.static.emission);
+  overlay.setData(store.static.layers, store.static.emission,
+                  { sources: store.static.sources, terrain: store.static.terrain });
 
   // zoom / pan controller
   mapview = new MapView($('#mapstack'), pan, bbox, () => repositionCard());
@@ -381,8 +382,11 @@ async function seekToTs(tsStr) {
 
 function render(f) {
   drawHillshade();
-  const q = state.showUQ ? f.q95 : f.q50;
-  const cm = colourMode(f.q50, state.scaleMode);   // range keyed to the median field
+  let q = state.showUQ ? f.q95 : f.q50;
+  // "indicative pattern" off (honest-spatial rules): show only the anchored part, the hour's valley level,
+  // uniformly. The readouts are unchanged; only the drawing loses the assumed within-valley pattern.
+  if (state.pattern === false) q = new Float32Array(q.length).fill(state.showUQ ? f.basin95 : f.basin);
+  const cm = colourMode(state.pattern === false ? q : f.q50, state.scaleMode);   // range keyed to the median field
   paintField($('#cv-field'), q, cm, store.meta.grid.n_lat);
   overlay.draw();
   if (showcase) showcase.drawStations();
@@ -737,10 +741,15 @@ function wireControls() {
   // blind-tier segmented control (proving-ground cities)
   for (const btn of document.querySelectorAll('#tier-seg .seg-btn'))
     btn.addEventListener('click', () => setTier(btn.dataset.tier));
-  for (const key of ['roads', 'water', 'emission', 'landmarks']) {
+  for (const key of ['roads', 'water', 'emission', 'landmarks', 'sources', 'terrain']) {
     const cb = $(`#layer-${key}`);
-    if (cb) cb.addEventListener('change', (e) => { overlay.show[key] = e.target.checked; overlay.draw(); });
+    if (cb) {
+      cb.checked = overlay.show[key];
+      cb.addEventListener('change', (e) => { overlay.show[key] = e.target.checked; overlay.draw(); });
+    }
   }
+  const pat = $('#layer-pattern');
+  if (pat) pat.addEventListener('change', (e) => { state.pattern = e.target.checked; if (state.cur) render(state.cur); });
   document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'SELECT') return;
     if (e.key === 'ArrowLeft') step(-1);

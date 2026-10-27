@@ -10,10 +10,16 @@ export class Overlay {
     this.bbox = bbox;              // [lonMin, latMin, lonMax, latMax]
     this.layers = null;
     this.emission = null;
-    this.show = { roads: true, water: true, emission: true, landmarks: true };
+    this.sources = null;           // measured: VIIRS night lights + OSM bus/market/rail points
+    this.terrain = null;           // measured: 100 m contours + valley-floor outline
+    // The traffic-emission contours are a MODELLED proxy, so they start off (honest-spatial rules, plan §6a).
+    this.show = { roads: true, water: true, emission: false, landmarks: true, sources: false, terrain: true };
   }
 
-  setData(layers, emission) { this.layers = layers; this.emission = emission; }
+  setData(layers, emission, extra = {}) {
+    this.layers = layers; this.emission = emission;
+    this.sources = extra.sources || null; this.terrain = extra.terrain || null;
+  }
 
   _pt(lon, lat) {
     const [x0, y0, x1, y1] = this.bbox, W = this.canvas.width, H = this.canvas.height;
@@ -29,6 +35,35 @@ export class Overlay {
     ctx.clearRect(0, 0, W, H);
     if (!this.layers) return;
     const L = this.layers;
+
+    // terrain (measured): valley floor wash, then 100 m contours, under everything else
+    if (this.show.terrain && this.terrain) {
+      ctx.fillStyle = 'rgba(143,179,168,0.10)';
+      ctx.strokeStyle = 'rgba(143,179,168,0.35)'; ctx.lineWidth = 0.6 * k;
+      for (const ring of this.terrain.floor) this._poly([ring], true);
+      for (const c of this.terrain.contours) {
+        const major = c.z % 200 === 0;
+        ctx.strokeStyle = `rgba(242,233,220,${major ? 0.22 : 0.12})`;
+        ctx.lineWidth = (major ? 0.9 : 0.5) * k;
+        this._line(c.c);
+      }
+    }
+    // sources (measured): night-time lights as light dots sized by brightness (log-scaled), readable on any
+    // PM colour; one dot per ~460 m VIIRS pixel
+    if (this.show.sources && this.sources && this.sources.ntl) {
+      const n = this.sources.ntl, [x0, y0, x1, y1] = this.sources.bbox;
+      const dx = (x1 - x0) / n.nlon, dy = (y1 - y0) / n.nlat, vmax = Math.max(...n.v);
+      const cell = Math.abs(this._pt(x0 + dx, y0)[0] - this._pt(x0, y0)[0]);
+      for (let r = 0; r < n.nlat; r++) for (let c = 0; c < n.nlon; c++) {
+        const s = n.v[r * n.nlon + c] / vmax;
+        if (s < 0.2) continue;                         // only meaningfully lit pixels (≥ 20 % of the brightest)
+        const [x, y] = this._pt(x0 + (c + 0.5) * dx, y0 + (r + 0.5) * dy), rad = cell * 0.46 * Math.sqrt(s);
+        ctx.fillStyle = 'rgba(15,13,11,0.5)';
+        ctx.beginPath(); ctx.arc(x, y, rad + 1 * k, 0, 7); ctx.fill();
+        ctx.fillStyle = `rgba(255,236,200,${(0.45 + 0.5 * s).toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill();
+      }
+    }
 
     if (this.show.water && L.water) {
       ctx.fillStyle = 'rgba(90,160,220,0.35)';
@@ -74,6 +109,18 @@ export class Overlay {
         ctx.lineWidth = (0.8 + c.level) * k;
         this._line(c.pts);
       }
+    }
+    // source points (measured, OSM): bus stations, markets, railway stations
+    if (this.show.sources && this.sources && this.sources.poi) {
+      const GLYPH = { bus: 'B', market: 'M', rail: 'R' };
+      ctx.font = `600 ${8.5 * k}px Inter, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (const p of this.sources.poi) {
+        const [x, y] = this._pt(p.c[0], p.c[1]); const r = 6 * k;
+        ctx.fillStyle = 'rgba(15,13,11,0.85)'; ctx.strokeStyle = 'rgba(255,214,140,0.95)'; ctx.lineWidth = 1.2 * k;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,214,140,1)'; ctx.fillText(GLYPH[p.k] || '•', x, y + 0.5 * k);
+      }
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     }
     if (this.show.landmarks && L.landmarks) this._labels(L.landmarks, k, W, H);
   }
