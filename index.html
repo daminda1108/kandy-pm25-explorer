@@ -3,262 +3,151 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Kandy PM2.5 Explorer · 2019–2026</title>
-  <meta name="description" content="Hourly 1 km PM2.5 fields for Kandy, Sri Lanka (2019–2026): heatmap, terrain wind, uncertainty, background/local split, weather conditions and documented haze events." />
+  <title>Kandy Air · fine-particle pollution, hour by hour, 2019–2026</title>
+  <meta name="description" content="How the air over Kandy, Sri Lanka, changes through the day: fine-particle pollution (PM2.5) reconstructed hour by hour since 2019, shown in 3-D with the weather of each hour and the rhythm of the city's traffic." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Inter:wght@400;500;600;700&family=STIX+Two+Text:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/tokens.css?v=1793121195" />
-  <link rel="stylesheet" href="css/style.css?v=1793121195" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/site.css?v=1793200000" />
   <script type="importmap">{ "imports": { "three": "./js/vendor/three.module.min.js" } }</script>
-  <link rel="stylesheet" href="css/valley.css?v=1793121195" />
 </head>
-<body class="valley">
-  <div id="loading">
-    <div class="load-inner">
-      <div class="spinner"></div>
-      <span>Loading Kandy PM<sub>2.5</sub> fields…</span>
-      <div class="load-steps" id="load-steps">
-        <span class="load-step" data-step="terrain">terrain &amp; map layers</span>
-        <span class="load-step" data-step="wind">terrain-wind library</span>
-        <span class="load-step" data-step="years">hourly record</span>
-        <span class="load-step" data-step="field">reconstructing the field</span>
-      </div>
-    </div>
-  </div>
+<body>
+  <div id="loading" class="loading"><p>Loading the valley<span class="dots"></span></p></div>
 
-  <header class="v-top">
-    <a class="v-mark" href="#" data-goto="story">Kandy Air <span class="eyebrow">PM<sub>2.5</sub> · 2019–2026</span></a>
-    <span class="v-claim" title="Level calibrated to one regulatory station (CEA Kandy, provisional) · day to day about as good as a scaled reanalysis · the 1 km pattern is an assumed physical prior, not street-level">Research reconstruction · level calibrated to one station</span>
-    <nav class="surface-nav" role="tablist" aria-label="Views">
-      <button class="surf-btn" data-surface="story" role="tab" aria-selected="false">Story</button>
-      <button class="surf-btn active" data-surface="explore" role="tab" aria-selected="true">Explore</button>
-      <button class="surf-btn" data-surface="insights" role="tab" aria-selected="false">Insights</button>
-      <span class="surf-hint" id="surf-hint" hidden>the map, hour by hour</span>
-    </nav>
-    <a href="method.html" class="method-link">How it works</a>
+  <header class="top">
+    <span class="mark">Kandy Air</span>
+    <span class="tagline">Fine-particle pollution over Kandy, hour by hour since 2019</span>
+    <nav class="nav" aria-label="More"><a href="#" data-sheet="data" class="nav-a">About this map</a></nav>
   </header>
 
-
-<!-- ══ NARRATIVE SURFACE ══════════════════════════════════════════════════
-     A scroll-led introduction for a first-time visitor. It exists because the
-     explorer answers "what was the air like at 3pm" but never "why does this
-     city need modelling at all, and how much of this should you believe".
-     Every figure here is linked to the evidence that produced it. -->
-<section id="story" class="story" hidden>
-  <div id="story-scene" class="story-scene" aria-hidden="true"><div id="story-caption" class="story-caption"></div></div>
-
-  <div class="story-hero">
-    <p class="story-eyebrow">Central Province · Sri Lanka</p>
-    <h2 class="story-title">A city of 100,000, with 390,000 arriving each weekday,<br>and one air quality monitor.</h2>
-    <p class="story-lede">Kandy sits in an enclosed valley about 500 m up, ringed by ridges
-      that trap what the city emits and, for part of the year, hold haze that arrived from
-      halfway across the Indian Ocean. Nobody has ever published a continuous record of its
-      fine particulate pollution. This is an attempt to reconstruct one, and to be precise
-      about which parts of it you can trust.</p>
-    <div class="story-scroll" aria-hidden="true"><span></span>scroll</div>
-  </div>
-
-  <article class="story-step" data-step="1">
-    <p class="story-num">01 · The problem</p>
-    <h3>You cannot validate a map of a place with no measurements.</h3>
-    <p>Standard methods learn from a city's own monitors. Kandy has one: the Central
-      Environmental Authority's regulatory station, with a fifteen-month gap in 2021–22. One
-      point can calibrate a level and a daily cycle, but it cannot teach a map, and it is the
-      only thing to check the answer against. A confident-looking map of an unmonitored city is just a confident
-      -looking map.</p>
-  </article>
-
-  <article class="story-step" data-step="2">
-    <p class="story-num">02 · The approach</p>
-    <h3>Build the model from physics, then test it where measurements exist.</h3>
-    <p>Every term depends only on data available anywhere on Earth: terrain, reanalysis
-      weather, satellite columns, an open road map. So the identical model can be run for
-      cities that <em>do</em> have dense monitoring networks, deliberately starved of data
-      to match Kandy's situation, and scored against the monitors it never saw.</p>
-    <div class="story-stat-row">
-      <div class="story-stat"><b>10</b><span>analogue cities, 5 countries</span></div>
-      <div class="story-stat"><b>0.94–1.00</b><span>seasonal cycle reproduced</span></div>
-      <div class="story-stat"><b>ρ ≈ 0.2–0.3</b><span>spatial skill ceiling, so the map is indicative</span></div>
-    </div>
-  </article>
-
-  <article class="story-step" data-step="3">
-    <p class="story-num">03 · What the air is made of</p>
-    <h3>About half of Kandy's pollution is not Kandy's.</h3>
-    <p>The field separates a regional background (the haze that arrives over the valley whatever
-      the city does) from the local increment on top of it. The split follows from a physical
-      constraint rather than an assumption: local sources emit continuously, so the background
-      can never equal the total. Imposing that gives roughly a <b>50/50</b> split, and it
-      shifts through the year with the monsoon.</p>
-    <div class="story-split" role="img" aria-label="About 51 percent local, 49 percent regional background">
-      <div class="sp-local"><span>~51%</span><small>local · actionable in the city</small></div>
-      <div class="sp-reg"><span>~49%</span><small>regional · needs coordination beyond it</small></div>
-    </div>
-  </article>
-
-  <article class="story-step" data-step="4">
-    <p class="story-num">04 · Confidence, tiered</p>
-    <h3>Three kinds of year, and they are not equally trustworthy.</h3>
-    <div class="story-tiers">
-      <div class="tier-card t-anchor"><b>2019 – 2023</b>
-        <span>Level from a satellite product, scaled to the CEA Kandy station (fitted 2019 to mid-2021, checked on 2022–2023).</span></div>
-      <div class="tier-card t-ext"><b>2024 – now</b>
-        <span>That satellite anchor ends in 2023, so the level is modelled from weather; against the CEA station it reads about 40% low.
-          Read an hour as indicative of conditions, not as a reading.</span></div>
-      <div class="tier-card t-fcst"><b>Forecast</b>
-        <span>A demonstration. Nothing about it is verified locally, and the interval is
-          deliberately wide.</span></div>
-    </div>
-  </article>
-
-  <article class="story-step" data-step="5">
-    <p class="story-num">05 · The honest limit</p>
-    <h3>The street-scale pattern is physics, not measurement.</h3>
-    <p>Where the pollution sits <em>within</em> the valley is imposed: a satellite level
-      surface times a terrain-confinement term, and its hour-to-hour sharpness has never been
-      calibrated against anything local. Independent tests say that pattern cannot be learned
-      from public data either, and the one station in the basin cannot test a map. Several
-      monitors spread across the valley would.</p>
-    <a class="story-cta" href="#" data-goto="explore">Open the explorer →</a>
-  </article>
-</section>
-
-  <main>
-    <section class="map-col v-stage">
-      <div id="mapstack" class="mapstack">
-        <div id="mappan" class="mappan"></div>
-        <div id="v3d" class="v3d" aria-label="3-D view of the Kandy valley with this hour's PM2.5 draped on the terrain"></div>
-        <div class="zoom-ctl">
-          <button id="zoom-in" title="Zoom in">+</button>
-          <button id="zoom-out" title="Zoom out">&minus;</button>
-          <button id="zoom-reset" title="Reset view">⤢</button>
-        </div>
-        <div id="wind-legend" class="wind-legend" title="Valley-mean wind this hour"></div>
-        <div id="point-card" class="point-card" hidden>
-          <button id="point-close" class="pc-close" title="Close">×</button>
-          <div id="point-card-body"></div>
-        </div>
+  <!-- ══ Explore: one scene, three questions. -->
+  <main id="explore" class="explore">
+    <section class="stage" aria-label="The Kandy valley at the chosen hour">
+      <div id="scene" class="scene-host"></div>
+      <div id="flatmap" class="flatmap" hidden>
+        <div id="mapstack" class="mapstack"><div id="mappan" class="mappan"></div></div>
       </div>
 
-      <div class="v-card">
-        <div id="map-title" class="map-title"></div>
-        <div id="cond-chip" class="cond-chip" title="What is driving this hour; thresholds are on the method page"></div>
-        <div id="zones" class="zones"></div>
-        <p id="tier-banner" class="tier-banner"></p>
-        <details id="fcst-evidence" class="fcst-evidence" style="display:none"></details>
+      <div class="headline" aria-live="polite">
+        <p id="hl-when" class="hl-when"></p>
+        <p class="hl-value"><span id="hl-num" class="num">—</span><span class="hl-unit">µg/m³</span></p>
+        <p id="hl-range" class="hl-range"></p>
+        <p id="hl-sentence" class="hl-sentence"></p>
+        <p id="hl-tier" class="hl-tier" hidden></p>
       </div>
 
-      <div class="map-foot v-legend">
-        <div class="seg" id="dim-seg" role="group" aria-label="View">
-          <button class="seg-btn" data-dim="3d" title="The valley in 3-D (terrain relief ×2.4); drag to turn, scroll to zoom">3-D valley</button>
-          <button class="seg-btn" data-dim="2d" title="Flat map with roads, layers, zoom and the floating point card">Flat map</button>
+      <aside class="key" aria-label="What the picture shows">
+        <p class="key-h">In the picture</p>
+        <label class="key-row"><input type="checkbox" data-layer="haze" checked /><i class="sw sw-haze"></i>
+          <span>Fine particles</span><em>estimate</em></label>
+        <label class="key-row"><input type="checkbox" data-layer="lid" checked /><i class="sw sw-lid"></i>
+          <span>Top of the mixing layer</span><em>weather data</em></label>
+        <label class="key-row"><input type="checkbox" data-layer="wind" checked /><i class="sw sw-wind"></i>
+          <span>Valley wind</span><em>rough guide</em></label>
+        <label class="key-row"><input type="checkbox" data-layer="traffic" checked /><i class="sw sw-traffic"></i>
+          <span>Traffic, typical timing</span><em>typical</em></label>
+        <p class="key-note">The weather is drawn beside the pollution. The model does not simulate how particles move.
+          <a href="#" data-sheet="data">More</a></p>
+        <div class="split" aria-label="From outside or made in the valley">
+          <p class="key-h">This hour, roughly</p>
+          <div class="split-bar"><span id="split-out"></span><span id="split-in"></span></div>
+          <p class="split-legend"><span><i class="dot d-out"></i>arrived from outside <b id="split-out-v">—</b></span>
+            <span><i class="dot d-in"></i>made in the valley <b id="split-in-v">—</b></span></p>
         </div>
-        <div class="colourbar-wrap">
-          <div class="cb-box">
-            <canvas id="colourbar" width="260" height="12"></canvas>
-            <div id="cb-ticks" class="cb-ticks"></div>
-          </div>
-          <div class="cb-label">PM<sub>2.5</sub> (µg/m³) · <span id="cb-tag">adaptive</span></div>
-        </div>
-        <div class="seg" role="group" aria-label="Colour scale">
-          <button class="seg-btn active" data-mode="auto" title="Fixed 0–90 µg/m³, stops at WHO values: a colour always means the same concentration">WHO scale</button>
-          <button class="seg-btn" data-mode="universal" title="Wide rainbow range, 8–90 µg/m³">Universal</button>
-          <button class="seg-btn" data-mode="adaptive" title="Stretches the colours to this hour's range: exaggerates small, indicative differences">Emphasise pattern</button>
-        </div>
+      </aside>
+
+      <div class="scene-tools">
+        <button id="cam-reset" class="tool" title="Reset the view">Reset view</button>
+        <button id="open-more" class="tool tool-strong" data-sheet="when">Choose a date</button>
       </div>
     </section>
 
-    <aside class="rail v-drawer">
-      <div class="v-tabs" role="tablist" aria-label="Details">
-        <button class="v-tab on" data-tab="day" role="tab">Day</button>
-        <button class="v-tab" data-tab="air" role="tab">Air mass</button>
-        <button class="v-tab" data-tab="weather" role="tab">Weather</button>
-        <button class="v-tab" data-tab="point" role="tab">Point</button>
-        <button class="v-tab" data-tab="exposure" role="tab">Exposure</button>
-        <button class="v-tab" data-tab="layers" role="tab">Layers</button>
-        <button class="v-tab" data-tab="data" role="tab">Events &amp; data</button>
-      </div>
-      <div class="panel" data-surface="both" data-tab="day">
-        <h3>Temporal variation <span class="hint">selected day</span></h3>
-        <canvas id="diurnal-canvas"></canvas>
-        <p id="diurnal-note" class="note"></p>
-        <h4 class="sub-h">Months of <span id="season-year"></span></h4>
-        <canvas id="season-canvas"></canvas>
-      </div>
-      <div class="panel" data-surface="both" data-tab="air">
-        <h3>Background vs local</h3>
-        <canvas id="decomp-canvas"></canvas>
-        <p id="decomp-note" class="note"></p>
-      </div>
-      <div class="panel" data-surface="explore" data-tab="weather">
-        <h3>Weather <span class="hint">ERA5, this hour</span></h3>
-        <div id="weather-body" class="kv"></div>
-        <p id="weather-note" class="note"></p>
-      </div>
-      <div class="panel" id="point-panel" data-surface="explore" data-tab="point">
-        <h3>Point query <span class="hint">click the map</span></h3>
-        <div id="point-body" class="kv"><p class="note">Click anywhere on the map to see which terrain zone it lies in and how that zone compares with the valley average.</p></div>
-      </div>
-      <div class="panel" data-surface="both" data-tab="exposure">
-        <h3>Exposure · <span id="health-year"></span></h3>
-        <div id="health-body" class="kv"></div>
-      </div>
-      <div class="panel" data-surface="explore" data-tab="layers">
-        <h3>Map layers</h3>
-        <div class="controls">
-          <label class="tog"><input type="checkbox" id="uq" /> show the 90% upper bound</label>
-          <label class="tog" title="The within-valley pattern is a physical assumption (satellite surface × terrain), not a measured map. Off: only the anchored valley level is drawn."><input type="checkbox" id="layer-pattern" checked /> pattern <span class="ev ev-indicative">indicative</span></label>
-          <label class="tog" title="Where emissions are likely: VIIRS night-time lights (2022) and OpenStreetMap bus stations (B), markets (M), railway stations (R). Sources, not concentrations."><input type="checkbox" id="layer-sources" /> sources <span class="ev ev-measured">measured</span></label>
-          <label class="tog" title="Elevation contours every 100 m and the valley floor below 500 m, from a 100 m terrain model."><input type="checkbox" id="layer-terrain" checked /> terrain <span class="ev ev-measured">measured</span></label>
-          <label class="tog" title="Traffic-emission surface built from road-network centrality: a model proxy, not a measurement."><input type="checkbox" id="layer-emission" /> traffic proxy <span class="ev ev-modelled">modelled</span></label>
-          <label class="tog"><input type="checkbox" id="layer-roads" checked /> roads</label>
-          <label class="tog"><input type="checkbox" id="layer-water" checked /> water</label>
-          <label class="tog"><input type="checkbox" id="layer-landmarks" checked /> place names</label>
+    <section class="day" aria-label="The chosen day, hour by hour">
+      <div class="day-head">
+        <button id="day-prev" class="arrow" title="Previous day">‹</button>
+        <h2 id="day-title" class="day-title">—</h2>
+        <button id="day-next" class="arrow" title="Next day">›</button>
+        <button id="play" class="play" title="Play the day (space)">Play the day</button>
+        <div class="seg" role="group" aria-label="Compare with the station's measured week">
+          <span class="seg-l">Station, typical</span>
+          <button class="seg-b on" data-cmp="wkd">Weekday</button>
+          <button class="seg-b" data-cmp="sun">Sunday</button>
         </div>
-        <p class="note">Measured layers show where sources and terrain are. They are not concentrations.</p>
       </div>
-      <div class="panel" data-surface="explore" data-tab="data">
-        <h3>Documented events</h3>
-        <div class="episodes-row" id="episodes-row"><span id="episodes"></span></div>
-        <div id="episode-card" class="episode-card"></div>
-        <h3 class="v-h3b">Download</h3>
-        <div class="download-row">
-          <button id="dl-png" class="dl-btn">PNG map</button>
-          <button id="dl-csv" class="dl-btn">field CSV</button>
-          <button id="dl-point" class="dl-btn" disabled>point series CSV</button>
-          <button id="copy-link" class="dl-btn" title="Copy a link to exactly this view">copy link</button>
-        </div>
-        <h3 class="v-h3b">About this record</h3>
-        <div id="integrity-text" class="integrity"></div>
-        <div id="credits" class="credits"></div>
-      </div>
-    </aside>
+      <div class="strip-wrap"><canvas id="strip" aria-label="Drag to move through the day"></canvas></div>
+    </section>
   </main>
 
-  <section class="v-bar">
-  <div class="datetime-bar">
-    <span class="dt-label">Date &amp; time</span>
-    <select id="sel-year" aria-label="Year"></select>
-    <select id="sel-month" aria-label="Month"></select>
-    <select id="sel-day" aria-label="Day"></select>
-    <select id="sel-hour" aria-label="Hour"></select>
-    <span class="dt-hint">Sri Lanka time · hourly grid at :30</span>
-    <span class="dt-hint fcst-hint" id="dt-hint-fcst" style="display:none"
-          title="Future hours come from the live forecast. They are a demonstration: the level is modelled, the pattern is climatological, and nothing is verified locally.">▸ = forecast (demonstration)</span>
-    <span id="dt-jumps" class="dt-jumps" aria-label="Jump to a notable hour"></span>
-    <span class="spacer"></span>
-    <div class="transport">
-      <button id="prev" title="Previous hour (←)">&#9664;</button>
-      <button id="play" title="Play / pause (space)">&#9654;</button>
-      <button id="next" title="Next hour (→)">&#9654;&#9654;</button>
+  <!-- ══ More: everything that is not the scene, in three sections -->
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-back" data-close></div>
+    <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <header class="sheet-head">
+        <h2 id="sheet-title" class="sr-only">More</h2>
+        <nav class="sheet-tabs">
+          <button data-tab="when">When</button><button data-tab="where">Where</button><button data-tab="data">Data and trust</button>
+        </nav>
+        <button class="sheet-x" data-close title="Close">Close</button>
+      </header>
+      <div class="sheet-body">
+        <section data-pane="when">
+          <h3>Pick a date and hour</h3>
+          <div class="pickers">
+            <select id="sel-year" aria-label="Year"></select>
+            <select id="sel-month" aria-label="Month"></select>
+            <select id="sel-day" aria-label="Day"></select>
+            <select id="sel-hour" aria-label="Hour"></select>
+          </div>
+          <p class="fine">Sri Lanka time. ▸ marks forecast hours, a demonstration.</p>
+          <h3>Every day since 2019</h3>
+          <div class="tl-wrap"><canvas id="timeline"></canvas></div>
+          <p class="fine">Each tick is one day's valley average. Click to go there.</p>
+          <h3>Notable hours</h3>
+          <div id="jumps" class="chips"></div>
+          <h3>Documented haze events</h3>
+          <div id="episodes" class="chips"></div>
+          <div id="episode-card" class="episode-card"></div>
+        </section>
+        <section data-pane="where">
+          <h3>Where in the valley</h3>
+          <div id="zones" class="zones"></div>
+          <p class="fine">The pattern inside the valley is an assumption a few per cent strong, so places are described
+            by terrain zone, never by street. Click the picture to see which zone a place is in.</p>
+          <div id="point" class="point"></div>
+          <h3>Flat map</h3>
+          <label class="tog"><input type="checkbox" id="flat-toggle" /> Show a flat map instead of the 3-D valley</label>
+          <label class="tog"><input type="checkbox" id="pattern-toggle" checked /> Draw the assumed pattern inside the
+            valley (off: the valley level only)</label>
+        </section>
+        <section data-pane="data">
+          <h3>How far to trust this hour</h3>
+          <div id="trust" class="trust"></div>
+          <label class="tog"><input type="checkbox" id="uq" /> Show the top of the 90 % range instead of the middle</label>
+          <h3>What the picture shows, and where it comes from</h3>
+          <dl class="sources">
+            <dt>Fine particles</dt><dd>The reconstruction for this hour, coloured by the World Health Organization's
+              levels (guideline 15 µg/m³ for a day; interim targets 25, 35, 50, 75).</dd>
+            <dt>Top of the mixing layer</dt><dd>Boundary-layer height from the ERA5 reanalysis, about 25 km across, drawn
+              as a level sheet above the valley floor. At night it explains less than it seems to: the station's
+              cleanest hours are the shallowest ones.</dd>
+            <dt>Valley wind</dt><dd id="wind-src"></dd>
+            <dt>Traffic</dt><dd id="traffic-src"></dd>
+            <dt>Station rhythm</dt><dd id="station-src"></dd>
+          </dl>
+          <h3>Downloads</h3>
+          <div class="chips">
+            <button id="dl-csv" class="chip">This hour's field (CSV)</button>
+            <button id="dl-point" class="chip" disabled>Place series (CSV)</button>
+            <button id="copy-link" class="chip">Copy a link to this hour</button>
+          </div>
+          <h3>About this record</h3>
+          <p id="integrity" class="fine"></p>
+          <ul id="credits" class="credits"></ul>
+        </section>
+      </div>
     </div>
   </div>
-  <div class="timeline-wrap">
-    <canvas id="timeline"></canvas>
-  </div>
-  </section>
 
-  <script type="module" src="js/shell.js?v=1793121195"></script>
-  <script type="module" src="js/app.js?v=1793121195"></script>
+  <script type="module" src="js/app.js?v=1793200000"></script>
 </body>
 </html>
