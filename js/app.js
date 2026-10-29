@@ -3,12 +3,12 @@
 // contrast-stretch label (bottom left), and a point card that follows its pin. Everything else sits in Details, closed
 // by default. The engine (store.js) is unchanged: every number comes from store.field() exactly as the QA gate checks.
 // History: v2 "the valley breathes" is git tag v2-valley-breathes; build record kandy_pm25/docs/webapp_A_build_plan_2026-10-29.md.
-import { $, $$, getJSON, compass } from './util.js?v=1793254900';
-import { activeCity } from './cities.js?v=1793254900';
-import { Store, STORE_FCST } from './store.js?v=1793254900';
-import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793254900';
-import { Valley, webglOK, pmCss, pmColour } from './valley.js?v=1793254900';
-import { envelope, verdict, cellOf, km, townAnswer } from './where.js?v=1793254900';
+import { $, $$, getJSON, compass } from './util.js?v=1793255500';
+import { activeCity } from './cities.js?v=1793255500';
+import { Store, STORE_FCST } from './store.js?v=1793255500';
+import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793255500';
+import { Valley, webglOK, pmCss, pmColour } from './valley.js?v=1793255500';
+import { envelope, verdict, cellOf, km, townAnswer } from './where.js?v=1793255500';
 
 const CITY = activeCity();
 const LT = CITY.tzOffsetH * 3600;
@@ -129,6 +129,7 @@ function render() {
   renderPoint(f);
   if (st.drawer) renderDrawer(f);
   $('#date').value = isoDay(f.tsUTC);
+  $('#hour').value = String(ltDate(f.tsUTC).getUTCHours());
   writeHash();
 }
 
@@ -369,6 +370,8 @@ function fillStatic() {
   kt.innerHTML = [5, 15, 35, 75].map((w) => `<span style="position:absolute;left:${w / SCALE_MAX * 100}%;transform:translateX(-50%)">${w}</span>`).join('')
     + '<span style="position:absolute;right:0">µg/m³</span>';
   $('#date').min = `${store.meta.years[0]}-01-01`;
+  // clock: the grid is hourly at :30 local time
+  $('#hour').innerHTML = Array.from({ length: 24 }, (_, h) => `<option value="${h}">${String(h).padStart(2, '0')}:30</option>`).join('');
 }
 
 // ── interaction ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -500,6 +503,7 @@ function wire() {
     seekTs(Date.parse(e.target.value + 'T00:00:00Z') / 1000 - LT + ltDate(st.f.tsUTC).getUTCHours() * 3600 + 1800);
   });
   $('#latest').addEventListener('click', goLatest);
+  $('#hour').addEventListener('change', (e) => seekTs(dayStart(st.f.tsUTC) + Number(e.target.value) * 3600 + 1800));
   // day ribbon and year band: press and drag to scrub; hover shows what is under the pointer
   const dayAt = (e) => { const b = $('#day').getBoundingClientRect(); return Math.min(23, Math.max(0, Math.floor((e.clientX - b.left) / b.width * 24))); };
   const yearAt = (e) => { const b = $('#year').getBoundingClientRect(), D = daily.days;

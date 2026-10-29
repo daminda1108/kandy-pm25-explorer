@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/site.css?v=1793254900" />
+  <link rel="stylesheet" href="css/site.css?v=1793255500" />
   <script type="importmap">{ "imports": { "three": "./js/vendor/three.module.min.js" } }</script>
   <script>window.CITY_ID = 'kandy';</script>
 </head>
@@ -70,6 +70,7 @@
     <button class="play" id="play" aria-label="Play the day">▶</button>
     <button class="step" id="prev-day" aria-label="Previous day">‹</button>
     <label class="date"><input type="date" id="date" aria-label="Date" /></label>
+    <label class="clock" title="Time of day (Sri Lanka time)"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4v4l2.6 1.6"/></svg><select id="hour" aria-label="Time of day"></select></label>
     <button class="step" id="next-day" aria-label="Next day">›</button>
     <div class="ribbons">
       <div class="day" id="day"><svg id="day-svg"></svg></div>
@@ -171,6 +172,6 @@
     </article>
   </div>
 
-  <script type="module" src="js/app.js?v=1793254900"></script>
+  <script type="module" src="js/app.js?v=1793255500"></script>
 </body>
 </html>
