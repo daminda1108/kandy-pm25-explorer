@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/site.css?v=1793242300" />
+  <link rel="stylesheet" href="css/site.css?v=1793245300" />
   <script type="importmap">{ "imports": { "three": "./js/vendor/three.module.min.js" } }</script>
   <script>window.CITY_ID = 'kandy';</script>
 </head>
@@ -21,6 +21,11 @@
   <header class="top">
     <div class="mark">Kandy Air</div>
     <span class="badge" id="tier"><i></i><span>Anchored year</span></span>
+    <div class="seg" role="group" aria-label="What the valley shows">
+      <button data-mode="haze" aria-pressed="true" title="Colour = how much PM2.5, on the WHO scale">Haze</button>
+      <button data-mode="lens" aria-pressed="false" title="Colour = above or below this hour's valley average">Pattern</button>
+    </div>
+    <label class="roadsw"><input type="checkbox" id="roads-tg" checked /> Roads</label>
     <nav>
       <button class="navb" data-tab="where">Where</button>
       <button class="navb" id="open-about">How it works</button>
@@ -39,6 +44,15 @@
       <span><i style="background:var(--accent)"></i>Made in the valley <b class="num" id="c-pl">–</b></span></div>
     <div class="foot" id="c-badges"></div>
   </section>
+
+  <div class="lens-key glass" id="lens-key" hidden>
+    <div class="lk-ramp"></div>
+    <div class="lk-ticks num"><span>−20 %</span><span>−10</span><span>valley average</span><span>+10</span><span>+20 %</span></div>
+    <p id="lens-now" class="num"></p>
+    <p class="fine">Pattern lens: each place against this hour's valley average. This is the model's assumed pattern
+      (a satellite surface, stronger where air is trapped under the ridges), not a measurement. In valleys with monitoring
+      networks, towns 3–10 km apart typically differ by about 13 %.</p>
+  </div>
 
   <aside class="drawer glass">
     <div class="tabs" role="tablist">
@@ -163,6 +177,6 @@
     </article>
   </div>
 
-  <script type="module" src="js/app.js?v=1793242300"></script>
+  <script type="module" src="js/app.js?v=1793245300"></script>
 </body>
 </html>

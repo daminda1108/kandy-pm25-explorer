@@ -4,7 +4,7 @@
 // model's own floor-to-ridge contrast is a few per cent, and drawing more would show a pattern the evidence lacks.
 // A second, optional sheet shows what every plausible within-valley map agrees on (Where tab).
 import * as THREE from 'three';
-import { OrbitControls } from './vendor/OrbitControls.js?v=1793242300';
+import { OrbitControls } from './vendor/OrbitControls.js?v=1793245300';
 
 const EXAG = 2.4, SIZE = 15, HAZE_LIFT = 0.10;
 
@@ -25,6 +25,20 @@ export function pmColour(v) {
   const s = STOPS[STOPS.length - 1]; return [s[1], s[2]];
 }
 export const pmCss = (v) => `rgb(${pmColour(v)[0].map(Math.round).join(',')})`;
+
+// PATTERN LENS (2026-10-29): colour by departure from this hour's valley average, on a fixed +-LENS_MAX % scale, so the
+// model's within-valley pattern is visible at any level. Fixed (not per-hour) so a well-mixed hour honestly looks flat.
+export const LENS_MAX = 20;
+const LENS = [[-20, [110, 178, 160]], [-8, [143, 199, 178]], [0, [242, 233, 220]], [8, [232, 163, 90]], [20, [196, 88, 50]]];
+export function lensColour(pct) {
+  const x = Math.max(-LENS_MAX, Math.min(LENS_MAX, pct));
+  for (let i = 1; i < LENS.length; i++) if (x <= LENS[i][0]) {
+    const [a, ca] = LENS[i - 1], [b, cb] = LENS[i], t = (x - a) / (b - a);
+    return [ca.map((c, k) => c + (cb[k] - c) * t), 0.06 + 0.74 * Math.min(1, Math.abs(x) / 15)];
+  }
+  return [LENS[LENS.length - 1][1], 0.8];
+}
+export const lensCss = (pct) => `rgb(${lensColour(pct)[0].map(Math.round).join(',')})`;
 
 export function webglOK() {
   try {                                              // release the probe context: browsers cap live WebGL contexts
@@ -108,7 +122,7 @@ export class Valley {
     this.haze = sheet(HAZE_LIFT);
     this.haze2 = sheet(0.30); this.haze2.material.opacity = 0.35;
     this.over = sheet(0.36); this.over.renderOrder = 10; this.over.visible = false;
-    this.hazeK = 1;
+    this.hazeK = 1; this.mode = 'haze'; this.roads = null;
 
     // labels (HTML, projected each frame) + one marker for the picked point
     this.labelLayer = Object.assign(document.createElement('div'), { className: 'labels' });
@@ -176,6 +190,35 @@ export class Valley {
   }
 
   setHazeStrength(k) { this.hazeK = k; if (this._q) this.setField(this._q); }
+  setMode(m) { this.mode = m; if (this._q) this.setField(this._q); }
+
+  // OpenStreetMap roads draped on the ground, under the haze (rank 3 trunk/primary, 2 secondary, 1 the rest)
+  setRoads(features) {
+    const by = { 1: [], 2: [], 3: [] }, T = this.T, n = this.n;
+    // keep segments on the terrain block, and drop them where the block fades into the page (edge < 0.5)
+    const inside = (q) => {
+      const u = (q[0] - T.lon0) / (T.lon1 - T.lon0), v = (q[1] - T.lat0) / (T.lat1 - T.lat0);
+      if (u < 0 || u > 1 || v < 0 || v > 1) return false;
+      const c = Math.round(u * (n - 1)), r = n - 1 - Math.round(v * (n - 1));
+      return this.edge[r * n + c] > 0.5;
+    };
+    for (const f of features || []) {
+      if (f.t !== 'ln') continue;
+      const arr = by[f.r || 1] || by[1];
+      for (let i = 1; i < f.c.length; i++) {
+        if (!inside(f.c[i - 1]) || !inside(f.c[i])) continue;
+        for (const q of [f.c[i - 1], f.c[i]]) { const v = this.lonLatToScene(q[0], q[1], 0.02); arr.push(v.x, v.y, v.z); }
+      }
+    }
+    this.roads = new THREE.Group();
+    for (const [r, op] of [[1, 0.35], [2, 0.55], [3, 0.85]]) {
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(by[r], 3));
+      this.roads.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: r === 3 ? 0xf2e9dc : 0xd8cdbb,
+        transparent: true, opacity: op, depthWrite: false })));
+    }
+    this.roads.renderOrder = 5; this.scene.add(this.roads);
+  }
+  showRoads(on) { if (this.roads) this.roads.visible = on; }
 
   _gridAt(q, i) {
     const n = this.n, c = i % n, rr = n - 1 - Math.floor(i / n), T = this.T, g = this.grid;
@@ -187,14 +230,17 @@ export class Valley {
   setField(q50) {
     this._q = q50;
     const col = this.haze.geometry.attributes.color, a4 = col.array;
+    let mean = 0; for (const x of q50) mean += Math.max(x, 0); mean /= q50.length;
+    const lens = this.mode === 'lens';
     for (let i = 0; i < col.count; i++) {
-      const [rgb, a] = pmColour(this._gridAt(q50, i));
+      const v = this._gridAt(q50, i);
+      const [rgb, a] = lens ? lensColour(mean > 0.5 ? (Math.max(v, 0) / mean - 1) * 100 : 0) : pmColour(v);
       a4[i * 4] = rgb[0] / 255; a4[i * 4 + 1] = rgb[1] / 255; a4[i * 4 + 2] = rgb[2] / 255;
-      a4[i * 4 + 3] = 0.5 * this.hazeK * a * this.edge[i];
+      a4[i * 4 + 3] = (lens ? 0.92 : 0.5 * this.hazeK) * a * this.edge[i];
     }
     col.needsUpdate = true;
     this.haze2.geometry.setAttribute('color', col);
-    let mean = 0; for (const x of q50) mean += Math.max(x, 0); mean /= q50.length;
+    this.haze2.visible = !lens;                         // one crisp sheet for the lens, two soft ones for haze
     const [f] = pmColour(mean), k = Math.min(1, mean / 80), fog = this.scene.fog;
     fog.color.setRGB((15 + (f[0] - 15) * 0.35 * k) / 255, (13 + (f[1] - 13) * 0.35 * k) / 255, (11 + (f[2] - 11) * 0.35 * k) / 255);
     fog.near = 16 - 6 * k; fog.far = 42 - 14 * k;

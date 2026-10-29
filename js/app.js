@@ -3,12 +3,12 @@
 // card; detail in a drawer (Air mass, Where, Weather, Data); time along the bottom (this day hour by hour, every day
 // since 2019). The engine (store.js) is unchanged: every number comes from store.field() exactly as the QA gate checks.
 // Replaces v2 "the valley breathes" (git tag v2-valley-breathes).
-import { $, $$, getJSON, compass } from './util.js?v=1793242300';
-import { activeCity } from './cities.js?v=1793242300';
-import { Store, STORE_FCST } from './store.js?v=1793242300';
-import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793242300';
-import { Valley, webglOK, pmCss, pmColour } from './valley.js?v=1793242300';
-import { envelope, verdict, cellOf, townAnswer } from './where.js?v=1793242300';
+import { $, $$, getJSON, compass } from './util.js?v=1793245300';
+import { activeCity } from './cities.js?v=1793245300';
+import { Store, STORE_FCST } from './store.js?v=1793245300';
+import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793245300';
+import { Valley, webglOK, pmCss, pmColour, lensColour } from './valley.js?v=1793245300';
+import { envelope, verdict, cellOf, townAnswer } from './where.js?v=1793245300';
 
 const CITY = activeCity();
 const LT = CITY.tzOffsetH * 3600;
@@ -22,8 +22,9 @@ const PLACES = [['Kandy', 'city centre'], ['Katugastota', 'river, north'], ['Per
 const SCALE_MAX = 90;
 
 const store = new Store(CITY);
-const st = { year: null, gi: 0, f: null, tab: 'air', conf: true, pick: null, playing: false, timer: null, env: null };
-let valley = null, parts = null, daily = null, spread = null, flatCv = null;
+const st = { year: null, gi: 0, f: null, tab: 'air', conf: true, pick: null, playing: false, timer: null, env: null,
+             mode: 'haze', roads: true };
+let valley = null, parts = null, daily = null, spread = null, flatCv = null, roads = null, ZONE = null;
 
 const ltDate = (ts) => new Date((ts + LT) * 1000);
 const hhmm = (ts) => { const d = ltDate(ts); return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
@@ -47,6 +48,10 @@ async function boot() {
     document.body.classList.add('no3d'); $('#scene').style.display = 'none';
     flatCv = $('#flat'); flatCv.addEventListener('click', flatPick);
   }
+  // valley floor / ridges = lowest / highest quarter of the 1 km cells by mean elevation (lens readout)
+  const el = store.static.fields.elev.flat(), qs = [...el].sort((a, b) => a - b);
+  const zlo = qs[Math.floor(qs.length * 0.25)], zhi = qs[Math.floor(qs.length * 0.75)];
+  ZONE = el.map((e) => (e <= zlo ? 1 : e >= zhi ? 2 : 0));
   fillStatic();
   wire();
   drawYear();
@@ -56,6 +61,7 @@ async function boot() {
     await seekTs(epTs(ep));
   }
   addEventListener('hashchange', () => { if (!writing) restoreFromHash(); });
+  if (st.roads) loadRoads();
   const l = $('#loading'); l.classList.add('done'); setTimeout(() => l.remove(), 500);
 }
 
@@ -89,6 +95,7 @@ function render() {
   const f = st.f, s = scalars(), tier = tierOf(st.year);
   st.env = parts ? envelope(parts, f, store.meta.eps_floor || 0) : null;
   if (valley) {
+    valley.setMode(st.mode);
     valley.setField(f.q50);
     const showConf = st.tab === 'where' && st.conf && st.env;
     valley.setConfidence(showConf ? st.env : null);
@@ -96,10 +103,35 @@ function render() {
   } else drawFlat();
   renderCard(f, tier);
   renderTier(tier);
+  renderLens(f);
   drawDay(); markYear();
   renderAir(f, s); renderWhere(f); renderWeather(f);
   $('#date').value = isoDay(f.tsUTC);
   writeHash();
+}
+
+// lens readout: the contrasts the physics predicts (floor vs ridges when air is trapped; centre vs valley)
+function renderLens(f) {
+  $('#lens-key').hidden = st.mode !== 'lens';
+  if (st.mode !== 'lens') return;
+  let a = 0, na = 0, b = 0, nb = 0, mx = -Infinity, mn = Infinity;
+  f.q50.forEach((v, i) => {
+    v = Math.max(v, 0); mx = Math.max(mx, v); mn = Math.min(mn, v);
+    if (ZONE[i] === 1) { a += v; na++; } else if (ZONE[i] === 2) { b += v; nb++; }
+  });
+  const pf = b > 0 ? (a / na / (b / nb) - 1) * 100 : 0, pc = f.basin > 0.5 ? (f.core / f.basin - 1) * 100 : 0;
+  const sg = (x) => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(0)} %`;
+  $('#lens-now').innerHTML = f.basin < 1 ? 'The valley is almost clean this hour.'
+    : `This hour: valley floor <b>${sg(pf)}</b> against the ridges · city centre <b>${sg(pc)}</b> against the valley`
+      + ` average · dirtiest 1 km cell <b>${mn > 0.1 ? sg((mx / mn - 1) * 100) : '–'}</b> against the cleanest.`;
+}
+
+async function loadRoads() {
+  if (!roads) {
+    try { roads = (await getJSON(`${store.base}/static/layers.json`)).roads || []; } catch { roads = []; }
+    if (valley) valley.setRoads(roads);
+  }
+  if (valley) valley.showRoads(st.roads); else if (st.f) drawFlat();
 }
 
 function episodeNear(ts) { return store.meta.episodes.find((e) => Math.abs(epTs(e) - ts) < 2.5 * 86400); }
@@ -310,6 +342,11 @@ function setTab(tab) {
   $$('.pane').forEach((p) => p.classList.toggle('on', p.id === `p-${tab}`));
   if (st.f) render();
 }
+function setMode(m) {
+  st.mode = m === 'lens' ? 'lens' : 'haze';
+  $$('.seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === st.mode)));
+  if (st.f) render();
+}
 function pick(lat, lon) {
   st.pick = { lat, lon };
   if (valley) valley.setPin(lat, lon);
@@ -342,6 +379,8 @@ async function goLatest() {
 }
 function wire() {
   $$('.tabs button').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+  $$('.seg button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  $('#roads-tg').addEventListener('change', (e) => { st.roads = e.target.checked; loadRoads(); writeHash(); });
   $$('.navb[data-tab]').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
   $('#w-conf').addEventListener('change', (e) => { st.conf = e.target.checked; render(); });
   $('#town-a').addEventListener('change', () => renderTowns(st.f));
@@ -418,7 +457,8 @@ function drawFlat() {
   const tmp = document.createElement('canvas'); tmp.width = g.n_lon; tmp.height = g.n_lat;
   const tc = tmp.getContext('2d'), im = tc.createImageData(g.n_lon, g.n_lat);
   for (let r = 0; r < g.n_lat; r++) for (let c = 0; c < g.n_lon; c++) {
-    const [rgb, a] = pmColour(st.f.q50[r * g.n_lon + c]), o = ((g.n_lat - 1 - r) * g.n_lon + c) * 4;
+    const v = st.f.q50[r * g.n_lon + c], o = ((g.n_lat - 1 - r) * g.n_lon + c) * 4;
+    const [rgb, a] = st.mode === 'lens' ? lensColour(st.f.basin > 0.5 ? (Math.max(v, 0) / st.f.basin - 1) * 100 : 0) : pmColour(v);
     im.data.set([rgb[0], rgb[1], rgb[2], 80 + 175 * a], o);
   }
   tc.putImageData(im, 0, 0);
@@ -438,6 +478,16 @@ function drawFlat() {
   }
   cv._geo = { x0, y0, side };
   const [lo0, la0, lo1, la1] = g.bbox;
+  if (st.roads && roads) {
+    for (const rk of [1, 2, 3]) {
+      ctx.strokeStyle = `rgba(242,233,220,${[0, 0.3, 0.5, 0.8][rk]})`; ctx.lineWidth = rk === 3 ? 1.6 : 0.8; ctx.beginPath();
+      for (const r of roads) if ((r.r || 1) === rk && r.t === 'ln') r.c.forEach(([x, y], k) => {
+        const px = x0 + (x - lo0) / (lo1 - lo0) * side, py = y0 + (1 - (y - la0) / (la1 - la0)) * side;
+        if (k) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+      });
+      ctx.stroke();
+    }
+  }
   ctx.font = '12px Inter, sans-serif'; ctx.fillStyle = '#f2e9dc';
   for (const m of store.meta.landmarks.filter((x) => x.k !== 'sensor')) {
     const x = x0 + (m.c[0] - lo0) / (lo1 - lo0) * side, y = y0 + (1 - (m.c[1] - la0) / (la1 - la0)) * side;
@@ -457,6 +507,8 @@ function writeHash() {
   p.set('t', String(st.f.tsUTC));
   if (st.tab !== 'air') p.set('tab', st.tab);
   if (st.pick) p.set('p', `${st.pick.lat.toFixed(4)},${st.pick.lon.toFixed(4)}`);
+  if (st.mode === 'lens') p.set('lens', '1');
+  if (!st.roads) p.set('roads', '0');
   const h = `#${p}`;
   if (h === location.hash) return;
   writing = true; history.replaceState(null, '', h); setTimeout(() => { writing = false; }, 0);
@@ -465,6 +517,9 @@ async function restoreFromHash() {
   const p = new URLSearchParams(location.hash.replace(/^#/, ''));
   const tab = p.get('tab') || ({ when: 'air', where: 'where', data: 'data' })[p.get('sheet')];
   if (['air', 'where', 'weather', 'data'].includes(tab)) setTab(tab);
+  setMode(p.get('lens') === '1' ? 'lens' : 'haze');
+  st.roads = p.get('roads') !== '0'; $('#roads-tg').checked = st.roads;
+  if (roads) loadRoads();
   const pp = (p.get('p') || '').split(',').map(Number);
   if (pp.length === 2 && pp.every(Number.isFinite)) { st.pick = { lat: pp[0], lon: pp[1] }; if (valley) valley.setPin(pp[0], pp[1]); }
   const t = Number(p.get('t'));

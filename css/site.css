@@ -43,6 +43,19 @@ a { color: var(--accent); }
 .vignette { position: fixed; inset: 0; pointer-events: none;
             background: radial-gradient(ellipse at 50% 42%, rgba(15,13,11,0) 42%, rgba(15,13,11,.78) 100%); }
 
+/* view switch, roads, lens key */
+.seg { display: inline-flex; background: rgba(242,233,220,.06); border: 1px solid var(--ink-line); border-radius: 99px; padding: 2px; }
+.seg button { background: none; border: 0; border-radius: 99px; padding: 5px 12px; font: 500 12px/1 var(--font-ui); color: var(--paper-2); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--paper); color: var(--ink-0); }
+.roadsw { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; color: var(--paper-2); cursor: pointer; }
+.roadsw input { accent-color: var(--accent); }
+.lens-key { position: fixed; left: var(--gut); bottom: calc(var(--bar-h) + 32px); width: 330px; padding: 12px 16px; z-index: 6; }
+.lens-key[hidden] { display: none; }
+.lk-ramp { height: 8px; border-radius: 8px; background: linear-gradient(90deg, rgb(110,178,160), rgb(143,199,178) 30%, rgb(242,233,220) 50%, rgb(232,163,90) 70%, rgb(196,88,50)); }
+.lk-ticks { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--paper-3); margin: 4px 0 6px; }
+.lens-key p { margin: 0 0 4px; font-size: 12.5px; color: var(--paper-2); }
+.lens-key p b { color: var(--paper); font-weight: 600; }
+
 /* header */
 header.top { position: fixed; top: 16px; left: var(--gut); right: var(--gut); display: flex; align-items: center; gap: 14px; z-index: 8; }
 .mark { font: 400 20px/1 var(--font-display); letter-spacing: -.01em; }
@@ -154,7 +167,10 @@ svg.mini { width: 100%; height: 120px; display: block; }
   #scene, #flat { position: relative; height: 52vh; min-height: 300px; }
   .vignette { display: none; }
   header.top { position: absolute; top: 10px; }
-  header.top .badge { display: none; }
+  header.top .badge, .roadsw, .navb[data-tab] { display: none; }
+  .mark { white-space: nowrap; font-size: 18px; }
+  .navb { white-space: nowrap; }
+  .lens-key { position: relative; left: auto; bottom: auto; transform: none; width: auto; margin: 0 var(--gut) 12px; }
   .navb { padding: 6px 7px; font-size: 12px; }
   .card, .drawer { position: relative; left: auto; right: auto; top: auto; bottom: auto; width: auto; margin: -28px var(--gut) 12px; }
   .drawer { margin-top: 0; margin-bottom: calc(var(--bar-h) + 24px); }
