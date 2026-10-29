@@ -2,18 +2,18 @@
 // One scene, three questions: what is the air like now (3-D valley + one sentence), why does it change through the
 // day (the day strip), how much of it is ours (the split bar). Everything else lives in the sheet. The engine
 // (store.js, field.js) is untouched; every number shown comes from store.field() exactly as before.
-import { $, el, fmt, clamp, compass, getJSON } from './util.js?v=1793200000';
-import { activeCity } from './cities.js?v=1793200000';
-import { Store, STORE_FCST } from './store.js?v=1793200000';
-import { colourMode, paintField } from './field.js?v=1793200000';
-import { WindLayer, windWords } from './wind.js?v=1793200000';
-import { Timeline } from './timeline.js?v=1793200000';
-import { Overlay } from './overlay.js?v=1793200000';
-import { MapView } from './mapview.js?v=1793200000';
-import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793200000';
-import { ValleyScene, webglOK, pmCss } from './scene.js?v=1793200000';
-import { DayStrip } from './daystrip.js?v=1793200000';
-import { zoneGrid, zoneStats, relWords } from './zones.js?v=1793200000';
+import { $, el, fmt, clamp, compass, getJSON } from './util.js?v=1793237379';
+import { activeCity } from './cities.js?v=1793237379';
+import { Store, STORE_FCST } from './store.js?v=1793237379';
+import { colourMode, paintField } from './field.js?v=1793237379';
+import { WindLayer, windWords } from './wind.js?v=1793237379';
+import { Timeline } from './timeline.js?v=1793237379';
+import { Overlay } from './overlay.js?v=1793237379';
+import { MapView } from './mapview.js?v=1793237379';
+import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793237379';
+import { ValleyScene, webglOK, pmCss } from './scene.js?v=1793237379';
+import { DayStrip } from './daystrip.js?v=1793237379';
+import { zoneGrid, zoneStats, relWords, townAnswer } from './zones.js?v=1793237379';
 
 const CITY = activeCity();
 const LT = CITY.tzOffsetH * 3600;
@@ -25,7 +25,7 @@ const MAP = 840;
 const store = new Store(CITY);
 const state = { year: null, gi: 0, cur: null, pin: null, uq: false, pattern: true, flat: false, cmp: 'wkd',
                 cmpTouched: false, playing: false };
-let scene = null, strip = null, timeline = null, act = null, terrain = null, ZG = null;
+let scene = null, strip = null, timeline = null, act = null, terrain = null, ZG = null, spread = null;
 let flat = null;          // { mapview, overlay, wind, hill }
 
 const lt = (ts) => new Date((ts + LT) * 1000);
@@ -35,8 +35,9 @@ const dayKey = (ts) => lt(ts).toISOString().slice(0, 10);
 // ── boot ────────────────────────────────────────────────────────────────
 async function boot() {
   await store.init();
-  [terrain, act] = await Promise.all([getJSON(`${store.base}/static/terrain3d.json`).catch(() => null),
-                                      getJSON(`${store.base}/static/activity.json`).catch(() => null)]);
+  [terrain, act, spread] = await Promise.all([getJSON(`${store.base}/static/terrain3d.json`).catch(() => null),
+                                      getJSON(`${store.base}/static/activity.json`).catch(() => null),
+                                      getJSON(`${store.base}/static/spatial_spread.json`).catch(() => null)]);
   strip = new DayStrip($('#strip'), (k) => goDayIndex(k));
   timeline = new Timeline($('#timeline'), store.meta.years, (y, gi) => { seek(y, gi); });
 
@@ -228,7 +229,24 @@ function renderWhere(f) {
   const zs = zoneStats(f.q50, ZG, f.basin);
   $('#zones').innerHTML = zs.map((z) => `<div class="zn-row"><span>${z.name} <small>${z.range}</small></span>`
     + `<span>${relWords(z.pct)}</span></div>`).join('');
+  renderTowns(f);
   if (state.pin) showPoint(state.pin.lat, state.pin.lon, false);
+}
+
+// two towns a few km apart: the typical size of the difference (learned in valleys with monitors), never a direction
+function renderTowns(f) {
+  const towns = (store.meta.landmarks || []).filter((t) => t.k === 'city' || t.k === 'town');
+  const sa = $('#town-a'), sb = $('#town-b');
+  if (!sa || !towns.length) return;
+  if (!sa.options.length) {
+    for (const s of [sa, sb]) s.innerHTML = towns.map((t, i) => `<option value="${i}">${t.n}</option>`).join('');
+    sa.value = String(Math.max(0, towns.findIndex((t) => t.n === 'Kandy')));
+    sb.value = String(Math.max(0, towns.findIndex((t) => t.n === 'Peradeniya')));
+    for (const s of [sa, sb]) s.addEventListener('change', () => state.cur && renderTowns(state.cur));
+  }
+  const a = towns[+sa.value], b = towns[+sb.value];
+  $('#towns').innerHTML = a === b ? '<p>Choose two different towns.</p>'
+    : townAnswer(a, b, f.q50, store.meta.grid, f.basin, spread);
 }
 
 function renderTrust(f) {
@@ -239,7 +257,7 @@ function renderTrust(f) {
     ['The rhythm of the day', 'Rush-hour peaks and clean nights match the station', 'timing right'],
     ['The seasons', 'The worst months are right; the swing is too strong (3–4× vs about 2× at the station)', 'too strong'],
     ['Which days are worse', 'About as good as a global air-quality model adjusted to the station', 'a guide'],
-    ['Where in the valley', 'An assumption a few per cent strong; cannot rank streets or towns', 'indicative'],
+    ['Where in the valley', 'An assumption a few per cent strong. Towns a few km apart usually differ by about 13 % in valleys with monitors; this map shows about 3 % and cannot say which town is higher', 'indicative'],
     ['From outside vs made here', 'Roughly half and half over a year; from how the model is built', 'estimate'],
     ['The 90 % range', 'Held the station’s value about 87 % of the time on later hours', 'checked'],
   ];
@@ -254,7 +272,8 @@ function showPoint(lat, lon, open = true) {
   const z = zoneStats(f.q50, ZG, f.basin)[ZG[li * g.n_lon + lj]];
   $('#point').innerHTML = `<b>${z.name}</b> (${Math.round(elev)} m). This hour the zone is ${relWords(z.pct)}; the valley average is `
     + `${fmt(f.basin)} µg/m³ (90 % range ${fmt(f.basin05)}–${fmt(f.basin95)}). Not a street-level reading: within a 1 km square, `
-    + `kerbside and garden air can differ many times over.`;
+    + `kerbside and garden air can differ many times over${spread ? `, and places a few kilometres apart in valleys with `
+    + `monitors usually differ by about ${Math.round((spread.median_ratio - 1) * 100)} %, which this map cannot place` : ''}.`;
   $('#dl-point').disabled = false;
   if (open) openSheet('where');
 }

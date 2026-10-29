@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/site.css?v=1793200000" />
+  <link rel="stylesheet" href="css/site.css?v=1793237379" />
   <script type="importmap">{ "imports": { "three": "./js/vendor/three.module.min.js" } }</script>
 </head>
 <body>
@@ -111,6 +111,10 @@
         <section data-pane="where">
           <h3>Where in the valley</h3>
           <div id="zones" class="zones"></div>
+          <h3>Two towns</h3>
+          <div class="town-pick"><select id="town-a" aria-label="First town"></select><span>and</span>
+            <select id="town-b" aria-label="Second town"></select></div>
+          <div id="towns" class="towns"></div>
           <p class="fine">The pattern inside the valley is an assumption a few per cent strong, so places are described
             by terrain zone, never by street. Click the picture to see which zone a place is in.</p>
           <div id="point" class="point"></div>
@@ -148,6 +152,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js?v=1793200000"></script>
+  <script type="module" src="js/app.js?v=1793237379"></script>
 </body>
 </html>
