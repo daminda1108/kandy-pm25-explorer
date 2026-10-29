@@ -4,7 +4,7 @@
 // model's own floor-to-ridge contrast is a few per cent, and drawing more would show a pattern the evidence lacks.
 // A second, optional sheet shows what every plausible within-valley map agrees on (Where tab).
 import * as THREE from 'three';
-import { OrbitControls } from './vendor/OrbitControls.js?v=1793251900';
+import { OrbitControls } from './vendor/OrbitControls.js?v=1793254900';
 
 const EXAG = 2.4, SIZE = 15, HAZE_LIFT = 0.10;
 
@@ -142,37 +142,57 @@ export class Valley {
     this.pin = Object.assign(document.createElement('span'), { className: 'pin' });
     this.pin.style.display = 'none'; this.labelLayer.appendChild(this.pin); this.pinP = null;
 
-    // pick: a click (not a drag) on the ground answers for that place
+    // pick: a click or tap (not a drag) on the ground answers for that place; hover (mouse) reads the value under it
     const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
-    let down = null;
-    r.domElement.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; });
-    r.domElement.addEventListener('pointerup', (e) => {
-      if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
+    const hitAt = (cx, cy) => {
       const b = r.domElement.getBoundingClientRect();
-      ndc.set(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1);
+      ndc.set(((cx - b.left) / b.width) * 2 - 1, -((cy - b.top) / b.height) * 2 + 1);
       ray.setFromCamera(ndc, cam);
       const hit = ray.intersectObject(this.ground)[0];
-      if (!hit) return;
+      if (!hit) return null;
       const u = hit.point.x / SIZE + 0.5, v = 0.5 - hit.point.z / SIZE;
-      if (u < 0 || u > 1 || v < 0 || v > 1) return;
-      const lon = terrain.lon0 + u * (terrain.lon1 - terrain.lon0), lat = terrain.lat0 + v * (terrain.lat1 - terrain.lat0);
-      this.onPick && this.onPick(lat, lon);
+      if (u < 0 || u > 1 || v < 0 || v > 1) return null;
+      return [terrain.lat0 + v * (terrain.lat1 - terrain.lat0), terrain.lon0 + u * (terrain.lon1 - terrain.lon0)];
+    };
+    let down = null, hoverQ = null, dragging = false;
+    r.domElement.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY, performance.now()]; dragging = false; });
+    r.domElement.addEventListener('pointerup', (e) => {
+      // a tap may wobble more than a mouse click; a long press-and-move is a turn, not a pick
+      const tol = e.pointerType === 'mouse' ? 6 : 14;
+      if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > tol || performance.now() - down[2] > 700) { down = null; return; }
+      down = null;
+      const ll = hitAt(e.clientX, e.clientY);
+      if (ll && this.onPick) this.onPick(ll[0], ll[1]);
     });
+    r.domElement.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse' || !this.onHover) return;
+      if (e.buttons) { dragging = true; this.onHover(null); return; }
+      const now = performance.now();                       // at most one raycast every 40 ms
+      if (hoverQ && now - hoverQ < 40) return;
+      hoverQ = now;
+      const ll = dragging ? null : hitAt(e.clientX, e.clientY);
+      this.onHover(ll ? { lat: ll[0], lon: ll[1], x: e.clientX, y: e.clientY } : null);
+    });
+    r.domElement.addEventListener('pointerleave', () => { if (this.onHover) this.onHover(null); });
 
     this._resize = () => {
       const w = el.clientWidth, hh = el.clientHeight;
       r.setSize(w, hh, false); r.domElement.style.width = w + 'px'; r.domElement.style.height = hh + 'px';
-      cam.aspect = w / Math.max(hh, 1); cam.updateProjectionMatrix();
+      cam.aspect = w / Math.max(hh, 1); cam.updateProjectionMatrix(); this.dirty = true;
     };
     new ResizeObserver(this._resize).observe(el); this._resize();
-    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    ctl.autoRotate = !reduce; ctl.autoRotateSpeed = 0.12;
-    r.domElement.addEventListener('pointerdown', () => { ctl.autoRotate = false; }, { once: true });
+    // RENDER ON DEMAND (UX pass 2026-10-29): the scene is drawn only when the camera moves, data changes or rain falls,
+    // instead of 60 times a second; no auto-rotation, which moved labels, the pin and the point card under the user's hand
+    this.dirty = true;
+    ctl.addEventListener('change', () => { this.dirty = true; });
     const frame = (t) => {
-      // keep panning on the block
-      ctl.target.x = Math.max(-SIZE / 2, Math.min(SIZE / 2, ctl.target.x));
+      ctl.target.x = Math.max(-SIZE / 2, Math.min(SIZE / 2, ctl.target.x));      // keep panning on the block
       ctl.target.z = Math.max(-SIZE / 2, Math.min(SIZE / 2, ctl.target.z));
-      ctl.update(); this._animate(t); r.render(scene, cam); this._project(); requestAnimationFrame(frame);
+      const moved = ctl.update(), raining = this.wx && this.wx.visible && this.rainN > 0;
+      if (moved || this.dirty || raining) {
+        this._animate(t); r.render(scene, cam); this._project(); this.dirty = false;
+      }
+      requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
   }
@@ -201,7 +221,7 @@ export class Valley {
     }
   }
 
-  setPin(lat, lon) {
+  setPin(lat, lon) { this.dirty = true;
     if (lat == null) { this.pinP = null; this.pin.style.display = 'none'; return; }
     this.pinP = this.lonLatToScene(lon, lat, 0.2); this.pin.style.display = '';
   }
@@ -210,9 +230,10 @@ export class Valley {
   setMode(m) { this.mode = m; if (this._q) this.setField(this._q); }
   setStretch(k) { this.stretch = k; if (this._q) this.setField(this._q); }
   followPin(fn) { this.onPinMove = fn; }
+  hover(fn) { this.onHover = fn; }
 
   // OpenStreetMap roads draped on the ground, under the haze (rank 3 trunk/primary, 2 secondary, 1 the rest)
-  setRoads(features) {
+  setRoads(features) { this.dirty = true;
     const by = { 1: [], 2: [], 3: [] }, T = this.T, n = this.n;
     // keep segments on the terrain block, and drop them where the block fades into the page (edge < 0.5)
     const inside = (q) => {
@@ -237,10 +258,10 @@ export class Valley {
     }
     this.roads.renderOrder = 5; this.scene.add(this.roads);
   }
-  showRoads(on) { if (this.roads) this.roads.visible = on; }
+  showRoads(on) { this.dirty = true; if (this.roads) this.roads.visible = on; }
 
   // hydrology: OpenStreetMap rivers (lines) and lakes/reservoirs (filled), draped on the ground under the haze
-  setWater(rivers, water) {
+  setWater(rivers, water) { this.dirty = true;
     const T = this.T, n = this.n, grp = new THREE.Group();
     const inside = (q) => {
       const u = (q[0] - T.lon0) / (T.lon1 - T.lon0), v = (q[1] - T.lat0) / (T.lat1 - T.lat0);
@@ -270,12 +291,12 @@ export class Valley {
     }
     grp.renderOrder = 6; this.water = grp; this.scene.add(grp);
   }
-  showWater(on) { if (this.water) this.water.visible = on; }
+  showWater(on) { this.dirty = true; if (this.water) this.water.visible = on; }
 
-  resetView() { this.cam.position.copy(this.home.pos); this.ctl.target.copy(this.home.target); this.ctl.update(); }
+  resetView() { this.dirty = true; this.cam.position.copy(this.home.pos); this.ctl.target.copy(this.home.target); this.ctl.update(); }
 
   // URBAN DEVELOPMENT: share of built-up land per terrain cell (ESA WorldCover 2021), a pale sheet on the ground
-  setBuilt(b) {
+  setBuilt(b) { this.dirty = true;
     if (!b || b.n !== this.n) return;
     const g = this.ground.geometry.clone(), p = g.attributes.position, n = this.n;
     for (let i = 0; i < p.count; i++) p.setY(i, p.getY(i) + 0.33);   // above the haze sheets, so haze does not tint it
@@ -288,7 +309,7 @@ export class Valley {
     this.built = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false }));
     this.built.renderOrder = 7; this.built.visible = false; this.scene.add(this.built);
   }
-  showBuilt(on) { if (this.built) this.built.visible = on; }
+  showBuilt(on) { this.dirty = true; if (this.built) this.built.visible = on; }
 
   // WEATHER: terrain wind as arrows, rain as falling streaks (rate = the hour's valley rain), and the top of the mixed
   // layer as a translucent lid above the valley floor (below the ridges when the air is trapped)
@@ -314,7 +335,7 @@ export class Valley {
     for (const o of [this.windLines, this.rain, this.lid]) o.renderOrder = 8;
     this.wx = grp; this.wx.visible = false; this.scene.add(grp);
   }
-  setWeather({ wind, rain, blh, floorElev }) {
+  setWeather({ wind, rain, blh, floorElev }) { this.dirty = true;
     this._ensureWeather();
     const T = this.T, pts = [];
     if (wind) {
@@ -346,7 +367,7 @@ export class Valley {
       this.lid.position.y = (Math.min(floorElev + blh, T.zmax + 1500) - T.zmin) / 1000 * EXAG;
     } else this.lid.visible = false;
   }
-  showWeather(on) { this._ensureWeather(); this.wx.visible = on; }
+  showWeather(on) { this.dirty = true; this._ensureWeather(); this.wx.visible = on; }
   _animate() {
     if (!this.wx || !this.wx.visible || !this.rainN) return;
     const p = this.rain.geometry.attributes.position, a = p.array;
@@ -365,7 +386,7 @@ export class Valley {
     return bilinear(q, g.n_lat, g.n_lon, Math.min(1, Math.max(0, u)), Math.min(1, Math.max(0, v)));
   }
 
-  setField(q50) {
+  setField(q50) { this.dirty = true;
     this._q = q50;
     const col = this.haze.geometry.attributes.color, a4 = col.array;
     let mean = 0; for (const x of q50) mean += Math.max(x, 0); mean /= q50.length;
@@ -391,7 +412,7 @@ export class Valley {
 
   // amber where every plausible map puts the cell above the valley average, cool where every one puts it below, clear
   // where they disagree; opacity also scales with the size of the departure (none below 3 %, full from 13 %)
-  setConfidence(conf) {
+  setConfidence(conf) { this.dirty = true;
     if (!conf) { this.over.visible = false; return; }
     const col = this.over.geometry.attributes.color, a4 = col.array;
     for (let i = 0; i < col.count; i++) {

@@ -3,12 +3,12 @@
 // contrast-stretch label (bottom left), and a point card that follows its pin. Everything else sits in Details, closed
 // by default. The engine (store.js) is unchanged: every number comes from store.field() exactly as the QA gate checks.
 // History: v2 "the valley breathes" is git tag v2-valley-breathes; build record kandy_pm25/docs/webapp_A_build_plan_2026-10-29.md.
-import { $, $$, getJSON, compass } from './util.js?v=1793251900';
-import { activeCity } from './cities.js?v=1793251900';
-import { Store, STORE_FCST } from './store.js?v=1793251900';
-import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793251900';
-import { Valley, webglOK, pmCss, pmColour } from './valley.js?v=1793251900';
-import { envelope, verdict, cellOf, km, townAnswer } from './where.js?v=1793251900';
+import { $, $$, getJSON, compass } from './util.js?v=1793254900';
+import { activeCity } from './cities.js?v=1793254900';
+import { Store, STORE_FCST } from './store.js?v=1793254900';
+import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793254900';
+import { Valley, webglOK, pmCss, pmColour } from './valley.js?v=1793254900';
+import { envelope, verdict, cellOf, km, townAnswer } from './where.js?v=1793254900';
 
 const CITY = activeCity();
 const LT = CITY.tzOffsetH * 3600;
@@ -43,6 +43,10 @@ const stretch = () => (st.trueScale ? 1 : STRETCH);
 // ── boot ────────────────────────────────────────────────────────────────────────────────────────────────────
 async function boot() {
   await store.init({ extras: false });
+  // start the opening hour's data at once, in parallel with the static files (it is the largest first-load item)
+  const t0 = Number(new URLSearchParams(location.hash.replace(/^#/, '')).get('t'));
+  const y0 = Number.isFinite(t0) && t0 > 0 ? ltDate(t0).getUTCFullYear() : 2022;
+  if (store.meta.years.includes(y0)) store.getScalars(y0).catch(() => {});
   let terrain;
   [terrain, parts, daily, spread] = await Promise.all(['terrain3d', 'pattern_parts', 'daily', 'spatial_spread']
     .map((k) => getJSON(`${store.base}/static/${k}.json`).catch(() => null)));
@@ -55,6 +59,7 @@ async function boot() {
     valley = new Valley($('#scene'), { terrain, meta: store.meta, grid: store.meta.grid,
                                        camera: innerWidth < 760 ? 'phone' : 'wide', onPick: (la, lo) => pick(la, lo) });
     valley.followPin(placePoint);
+    valley.hover(showTip);
   } else {
     document.body.classList.add('no3d'); $('#scene').style.display = 'none';
     flatCv = $('#flat'); flatCv.addEventListener('click', flatPick);
@@ -89,11 +94,21 @@ async function seekTs(ts) {
 let seekSeq = 0;
 async function seek(year, gi) {
   const my = ++seekSeq;
-  const f = await store.field(year, gi);
+  const slow = setTimeout(() => { $('#busy').hidden = false; }, 150);     // only when it has to wait on the network
+  let f;
+  try { f = await store.field(year, gi); } finally { clearTimeout(slow); if (my === seekSeq) $('#busy').hidden = true; }
   if (my !== seekSeq) return true;
   st.year = year; st.gi = gi; st.f = f;
   render();
+  prefetch(year, gi);
   return true;
+}
+// warm the next month (and the next year's file at year end) while the user looks at this one
+function prefetch(year, gi) {
+  const s = scalars(); if (!s || year === STORE_FCST) return;
+  const ahead = Math.min(gi + 72, s.hours_utc.length - 1);
+  if (ahead !== gi) (window.requestIdleCallback || setTimeout)(() => store.field(year, ahead).catch(() => {}));
+  if (gi > s.hours_utc.length - 24 * 4) { const ys = store.meta.years, i = ys.indexOf(year); if (ys[i + 1]) store.getScalars(ys[i + 1]).catch(() => {}); }
 }
 const scalars = () => store.scalars.get(st.year);
 
@@ -151,6 +166,17 @@ function renderKey(f) {
   $('#k-stretch').innerHTML = st.trueScale
     ? `True colour scale · floor ${sg(pf)} vs ridges this hour · <u>stretch ×${STRETCH}</u>`
     : `Differences across the valley drawn ×${STRETCH} · floor ${sg(pf)} vs ridges this hour · <u>true scale</u>`;
+}
+
+// ── hover readout (mouse): value and departure under the cursor ─────────────────────────────────────────────
+function showTip(h) {
+  const tip = $('#tip');
+  if (!h || !st.f) { tip.hidden = true; return; }
+  const i = cellOf(store.meta.grid, h.lat, h.lon), v = Math.max(st.f.q50[i], 0);
+  const rel = st.f.basin > 0.5 ? (v / st.f.basin - 1) * 100 : 0, np = nearestPlace(h.lat, h.lon);
+  tip.innerHTML = `${np.d < 1.2 ? np.m.n + ' · ' : ''}<b>${f0(v)}</b> µg/m³ · ${sg(rel)} · ${f0(ELEV[i])} m`;
+  tip.hidden = false;
+  tip.style.transform = `translate(${Math.min(h.x + 14, innerWidth - tip.offsetWidth - 8)}px, ${h.y + 16}px)`;
 }
 
 // ── point card ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -371,8 +397,10 @@ async function stepHour(k) {
 }
 function play(on) {
   st.playing = on; $('#play').textContent = on ? '❚❚' : '▶'; $('#play').setAttribute('aria-label', on ? 'Pause' : 'Play the day');
-  clearInterval(st.timer);
-  if (on) st.timer = setInterval(() => stepHour(1), 900);
+  clearTimeout(st.timer);
+  // chained, not an interval: the next hour starts only after this one is drawn, so slow loads never pile up
+  const tick = async () => { if (!st.playing) return; await stepHour(1); if (st.playing) st.timer = setTimeout(tick, 700); };
+  if (on) st.timer = setTimeout(tick, 250);
 }
 async function goLatest() {
   $('#latest').disabled = true;
@@ -385,6 +413,11 @@ async function goLatest() {
   const ys = store.meta.years, s = await store.getScalars(ys[ys.length - 1]);
   return seek(ys[ys.length - 1], s.hours_utc.length - 1);
 }
+function tipAt(e, html) {
+  const tip = $('#tip'); tip.innerHTML = html; tip.hidden = false;
+  tip.style.transform = `translate(${Math.max(8, Math.min(e.clientX - tip.offsetWidth / 2, innerWidth - tip.offsetWidth - 8))}px, ${e.clientY - 34}px)`;
+}
+
 // ── layers: urban development and weather ─────────────────────────────────────────────────────────────────
 async function setUrban(on) {
   st.urban = on; $('#urban-tg').checked = on; $('#k-urban').hidden = !on;
@@ -424,7 +457,7 @@ function wireDrag() {
   h.addEventListener('pointerdown', (e) => {
     if (innerWidth < 760 || e.target.closest('.x')) return;
     const m = /translate\((-?[\d.]+)px, (-?[\d.]+)px\)/.exec(el.style.transform) || [0, 0, 0];
-    start = [e.clientX, e.clientY, +m[1], +m[2]]; h.setPointerCapture(e.pointerId);
+    start = [e.clientX, e.clientY, +m[1], +m[2]]; try { h.setPointerCapture(e.pointerId); } catch { /* ended pointer */ }
   });
   h.addEventListener('pointermove', (e) => {
     if (!start) return;
@@ -467,15 +500,29 @@ function wire() {
     seekTs(Date.parse(e.target.value + 'T00:00:00Z') / 1000 - LT + ltDate(st.f.tsUTC).getUTCHours() * 3600 + 1800);
   });
   $('#latest').addEventListener('click', goLatest);
-  $('#day').addEventListener('click', (e) => {
-    const b = e.currentTarget.getBoundingClientRect(), fr = (e.clientX - b.left) / b.width;
-    seekTs(dayStart(st.f.tsUTC) + Math.min(23, Math.floor(fr * 24)) * 3600 + 1800);
-  });
-  $('#year').addEventListener('click', (e) => {
-    if (!daily) return;
-    const b = e.currentTarget.getBoundingClientRect(), D = daily.days;
-    const d = D[Math.min(D.length - 1, Math.max(0, Math.floor((e.clientX - b.left) / b.width * D.length)))];
-    seekTs(d[0] + ltDate(st.f.tsUTC).getUTCHours() * 3600 + 1800);
+  // day ribbon and year band: press and drag to scrub; hover shows what is under the pointer
+  const dayAt = (e) => { const b = $('#day').getBoundingClientRect(); return Math.min(23, Math.max(0, Math.floor((e.clientX - b.left) / b.width * 24))); };
+  const yearAt = (e) => { const b = $('#year').getBoundingClientRect(), D = daily.days;
+    return D[Math.min(D.length - 1, Math.max(0, Math.floor((e.clientX - b.left) / b.width * D.length)))]; };
+  const scrub = (el, onAt, onTip) => {
+    let on = false;
+    el.addEventListener('pointerdown', (e) => { on = true; try { el.setPointerCapture(e.pointerId); } catch { /* synthetic or ended pointer */ } lastH = lastD = null; onAt(e); });
+    el.addEventListener('pointermove', (e) => { onTip(e); if (on) onAt(e); });
+    const end = () => { on = false; }; el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+    el.addEventListener('pointerleave', () => { $('#tip').hidden = true; });
+  };
+  let lastH = null, lastD = null;
+  scrub($('#day'), (e) => { const h = dayAt(e); if (h !== lastH) { lastH = h; seekTs(dayStart(st.f.tsUTC) + h * 3600 + 1800); } },
+    (e) => {
+      const s = scalars(), h = dayAt(e), gi = dayIdx()[h]; if (gi == null) return;
+      tipAt(e, `${String(h).padStart(2, '0')}:30 · <b>${f0(s.basin[gi])}</b> µg/m³`);
+    });
+  scrub($('#year'), (e) => { if (!daily) return; const d = yearAt(e); if (d !== lastD) { lastD = d; seekTs(d[0] + ltDate(st.f.tsUTC).getUTCHours() * 3600 + 1800); } },
+    (e) => { if (!daily) return; const d = yearAt(e), dt = ltDate(d[0] + 3600);
+      tipAt(e, `${dt.getUTCDate()} ${MON[dt.getUTCMonth()]} ${dt.getUTCFullYear()} · day mean <b>${f0(d[1])}</b> · peak ${f0(d[2])}`); });
+  // Layers closes when you click elsewhere
+  addEventListener('pointerdown', (e) => {
+    if (!$('#layers').hidden && !e.target.closest('#layers, #open-layers')) { $('#layers').hidden = true; $('#open-layers').setAttribute('aria-expanded', 'false'); }
   });
   $('#open-about').addEventListener('click', () => $('#about').classList.add('on'));
   $('#close-about').addEventListener('click', () => $('#about').classList.remove('on'));
@@ -484,8 +531,8 @@ function wire() {
     const tg = e.target;
     if (tg && tg.matches && tg.matches('input, select, textarea')) return;
     if (e.key === 'Escape') { $('#about').classList.remove('on'); $('#layers').hidden = true; if (st.pick) unpick(); }
-    else if (e.key === 'ArrowRight') stepHour(1);
-    else if (e.key === 'ArrowLeft') stepHour(-1);
+    else if (e.key === 'ArrowRight') { if (e.shiftKey) seekTs(st.f.tsUTC + 86400); else stepHour(1); }
+    else if (e.key === 'ArrowLeft') { if (e.shiftKey) seekTs(st.f.tsUTC - 86400); else stepHour(-1); }
     else if (e.key === ' ' && !(tg && tg.matches && tg.matches('button'))) { e.preventDefault(); play(!st.playing); }
   });
   $('#dl-field').addEventListener('click', () => downloadFieldCSV(store, st.f, CITY));

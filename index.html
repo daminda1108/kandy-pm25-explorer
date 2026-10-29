@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/site.css?v=1793251900" />
+  <link rel="stylesheet" href="css/site.css?v=1793254900" />
   <script type="importmap">{ "imports": { "three": "./js/vendor/three.module.min.js" } }</script>
   <script>window.CITY_ID = 'kandy';</script>
 </head>
@@ -17,6 +17,8 @@
   <div id="scene" aria-label="3-D view of the Kandy valley with this hour's PM2.5 drawn as haze. Drag to turn, click a place for its details."></div>
   <canvas id="flat" aria-label="Map of the Kandy valley with this hour's PM2.5"></canvas>
   <div class="shade"></div>
+  <div class="tip" id="tip" hidden></div>
+  <div class="busy" id="busy" hidden></div>
 
   <!-- the hour, in one glance -->
   <section class="now" aria-live="polite">
@@ -169,6 +171,6 @@
     </article>
   </div>
 
-  <script type="module" src="js/app.js?v=1793251900"></script>
+  <script type="module" src="js/app.js?v=1793254900"></script>
 </body>
 </html>
