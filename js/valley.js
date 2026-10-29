@@ -4,7 +4,7 @@
 // model's own floor-to-ridge contrast is a few per cent, and drawing more would show a pattern the evidence lacks.
 // A second, optional sheet shows what every plausible within-valley map agrees on (Where tab).
 import * as THREE from 'three';
-import { OrbitControls } from './vendor/OrbitControls.js?v=1793245300';
+import { OrbitControls } from './vendor/OrbitControls.js?v=1793246500';
 
 const EXAG = 2.4, SIZE = 15, HAZE_LIFT = 0.10;
 
@@ -219,6 +219,39 @@ export class Valley {
     this.roads.renderOrder = 5; this.scene.add(this.roads);
   }
   showRoads(on) { if (this.roads) this.roads.visible = on; }
+
+  // hydrology: OpenStreetMap rivers (lines) and lakes/reservoirs (filled), draped on the ground under the haze
+  setWater(rivers, water) {
+    const T = this.T, n = this.n, grp = new THREE.Group();
+    const inside = (q) => {
+      const u = (q[0] - T.lon0) / (T.lon1 - T.lon0), v = (q[1] - T.lat0) / (T.lat1 - T.lat0);
+      if (u < 0 || u > 1 || v < 0 || v > 1) return false;
+      return this.edge[(n - 1 - Math.round(v * (n - 1))) * n + Math.round(u * (n - 1))] > 0.5;
+    };
+    const pts = [];
+    for (const f of rivers || []) for (let i = 1; i < f.c.length; i++) {
+      if (!inside(f.c[i - 1]) || !inside(f.c[i])) continue;
+      for (const q of [f.c[i - 1], f.c[i]]) { const v = this.lonLatToScene(q[0], q[1], 0.025); pts.push(v.x, v.y, v.z); }
+    }
+    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    grp.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x7fb6d6, transparent: true, opacity: 0.95, depthWrite: false })));
+    const mat = new THREE.MeshBasicMaterial({ color: 0x5f9fc4, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide });
+    for (const f of water || []) {
+      const ring = (f.c && f.c[0]) || [];
+      if (ring.length < 3 || !ring.every(inside)) continue;
+      const shape = new THREE.Shape(ring.map((q) => { const v = this.lonLatToScene(q[0], q[1]); return new THREE.Vector2(v.x, v.z); }));
+      const g = new THREE.ShapeGeometry(shape), p = g.attributes.position, out = new Float32Array(p.count * 3);
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i), z = p.getY(i), u = x / SIZE + 0.5, v = 0.5 - z / SIZE;
+        const y = this.lonLatToScene(T.lon0 + u * (T.lon1 - T.lon0), T.lat0 + v * (T.lat1 - T.lat0), 0.03).y;
+        out.set([x, y, z], i * 3);
+      }
+      g.setAttribute('position', new THREE.BufferAttribute(out, 3));
+      grp.add(new THREE.Mesh(g, mat));
+    }
+    grp.renderOrder = 6; this.water = grp; this.scene.add(grp);
+  }
+  showWater(on) { if (this.water) this.water.visible = on; }
 
   _gridAt(q, i) {
     const n = this.n, c = i % n, rr = n - 1 - Math.floor(i / n), T = this.T, g = this.grid;

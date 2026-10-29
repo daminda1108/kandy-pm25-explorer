@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/site.css?v=1793245300" />
+  <link rel="stylesheet" href="css/site.css?v=1793246500" />
   <script type="importmap">{ "imports": { "three": "./js/vendor/three.module.min.js" } }</script>
   <script>window.CITY_ID = 'kandy';</script>
 </head>
@@ -26,6 +26,7 @@
       <button data-mode="lens" aria-pressed="false" title="Colour = above or below this hour's valley average">Pattern</button>
     </div>
     <label class="roadsw"><input type="checkbox" id="roads-tg" checked /> Roads</label>
+    <label class="roadsw"><input type="checkbox" id="water-tg" checked /> Rivers &amp; lakes</label>
     <nav>
       <button class="navb" data-tab="where">Where</button>
       <button class="navb" id="open-about">How it works</button>
@@ -86,6 +87,10 @@
           <div class="rung"><b>Where in the valley</b><div class="dots"><i class="f"></i><i></i><i></i></div>
             <small>Physics, not measured: shown as what every plausible map agrees on</small></div>
         </div>
+        <p class="fine">Kandy's town station reads about twice the Hantana ridge sensor, but mostly by day and least at
+          night, when air is most trapped. That is not the signature of air pooling on the valley floor (more likely town
+          traffic, or the low-cost sensor reading high in humid nights), so the map's floor-to-ridge contrast is not
+          sharpened to match it.</p>
         <p id="w-mix"></p>
         <label class="toggle"><input type="checkbox" id="w-conf" checked /> Colour what the plausible maps agree on</label>
         <div class="legend">
@@ -177,6 +182,6 @@
     </article>
   </div>
 
-  <script type="module" src="js/app.js?v=1793245300"></script>
+  <script type="module" src="js/app.js?v=1793246500"></script>
 </body>
 </html>

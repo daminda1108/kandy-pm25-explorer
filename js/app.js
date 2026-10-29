@@ -3,12 +3,12 @@
 // card; detail in a drawer (Air mass, Where, Weather, Data); time along the bottom (this day hour by hour, every day
 // since 2019). The engine (store.js) is unchanged: every number comes from store.field() exactly as the QA gate checks.
 // Replaces v2 "the valley breathes" (git tag v2-valley-breathes).
-import { $, $$, getJSON, compass } from './util.js?v=1793245300';
-import { activeCity } from './cities.js?v=1793245300';
-import { Store, STORE_FCST } from './store.js?v=1793245300';
-import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793245300';
-import { Valley, webglOK, pmCss, pmColour, lensColour } from './valley.js?v=1793245300';
-import { envelope, verdict, cellOf, townAnswer } from './where.js?v=1793245300';
+import { $, $$, getJSON, compass } from './util.js?v=1793246500';
+import { activeCity } from './cities.js?v=1793246500';
+import { Store, STORE_FCST } from './store.js?v=1793246500';
+import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793246500';
+import { Valley, webglOK, pmCss, pmColour, lensColour } from './valley.js?v=1793246500';
+import { envelope, verdict, cellOf, townAnswer } from './where.js?v=1793246500';
 
 const CITY = activeCity();
 const LT = CITY.tzOffsetH * 3600;
@@ -23,8 +23,8 @@ const SCALE_MAX = 90;
 
 const store = new Store(CITY);
 const st = { year: null, gi: 0, f: null, tab: 'air', conf: true, pick: null, playing: false, timer: null, env: null,
-             mode: 'haze', roads: true };
-let valley = null, parts = null, daily = null, spread = null, flatCv = null, roads = null, ZONE = null;
+             mode: 'haze', roads: true, water: true };
+let valley = null, parts = null, daily = null, spread = null, flatCv = null, roads = null, ZONE = null, hydro = null;
 
 const ltDate = (ts) => new Date((ts + LT) * 1000);
 const hhmm = (ts) => { const d = ltDate(ts); return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
@@ -61,7 +61,7 @@ async function boot() {
     await seekTs(epTs(ep));
   }
   addEventListener('hashchange', () => { if (!writing) restoreFromHash(); });
-  if (st.roads) loadRoads();
+  loadLayers();
   const l = $('#loading'); l.classList.add('done'); setTimeout(() => l.remove(), 500);
 }
 
@@ -126,13 +126,17 @@ function renderLens(f) {
       + ` average · dirtiest 1 km cell <b>${mn > 0.1 ? sg((mx / mn - 1) * 100) : '–'}</b> against the cleanest.`;
 }
 
-async function loadRoads() {
-  if (!roads) {
-    try { roads = (await getJSON(`${store.base}/static/layers.json`)).roads || []; } catch { roads = []; }
-    if (valley) valley.setRoads(roads);
-  }
-  if (valley) valley.showRoads(st.roads); else if (st.f) drawFlat();
+// roads and hydrology share one file (layers.json, OpenStreetMap), loaded after the first view
+let layersJob = null;
+async function loadLayers() {
+  if (!layersJob) layersJob = getJSON(`${store.base}/static/layers.json`).catch(() => ({})).then((L) => {
+    roads = L.roads || []; hydro = { rivers: L.rivers || [], water: L.water || [] };
+    if (valley) { valley.setRoads(roads); valley.setWater(hydro.rivers, hydro.water); }
+  });
+  await layersJob;
+  if (valley) { valley.showRoads(st.roads); valley.showWater(st.water); } else if (st.f) drawFlat();
 }
+const loadRoads = loadLayers;
 
 function episodeNear(ts) { return store.meta.episodes.find((e) => Math.abs(epTs(e) - ts) < 2.5 * 86400); }
 
@@ -380,7 +384,8 @@ async function goLatest() {
 function wire() {
   $$('.tabs button').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
   $$('.seg button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
-  $('#roads-tg').addEventListener('change', (e) => { st.roads = e.target.checked; loadRoads(); writeHash(); });
+  $('#roads-tg').addEventListener('change', (e) => { st.roads = e.target.checked; loadLayers(); writeHash(); });
+  $('#water-tg').addEventListener('change', (e) => { st.water = e.target.checked; loadLayers(); writeHash(); });
   $$('.navb[data-tab]').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
   $('#w-conf').addEventListener('change', (e) => { st.conf = e.target.checked; render(); });
   $('#town-a').addEventListener('change', () => renderTowns(st.f));
@@ -478,6 +483,23 @@ function drawFlat() {
   }
   cv._geo = { x0, y0, side };
   const [lo0, la0, lo1, la1] = g.bbox;
+  ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, side, side); ctx.clip();       // keep map layers on the map
+  if (st.water && hydro) {
+    ctx.fillStyle = 'rgba(95,159,196,.85)';
+    for (const w of hydro.water) {
+      const ring = (w.c && w.c[0]) || []; if (ring.length < 3) continue;
+      ctx.beginPath();
+      ring.forEach(([x, y], k) => { const px = x0 + (x - lo0) / (lo1 - lo0) * side, py = y0 + (1 - (y - la0) / (la1 - la0)) * side;
+                                    if (k) ctx.lineTo(px, py); else ctx.moveTo(px, py); });
+      ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(127,182,214,.95)'; ctx.lineWidth = 1.4; ctx.beginPath();
+    for (const r of hydro.rivers) r.c.forEach(([x, y], k) => {
+      const px = x0 + (x - lo0) / (lo1 - lo0) * side, py = y0 + (1 - (y - la0) / (la1 - la0)) * side;
+      if (k) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+    });
+    ctx.stroke();
+  }
   if (st.roads && roads) {
     for (const rk of [1, 2, 3]) {
       ctx.strokeStyle = `rgba(242,233,220,${[0, 0.3, 0.5, 0.8][rk]})`; ctx.lineWidth = rk === 3 ? 1.6 : 0.8; ctx.beginPath();
@@ -488,6 +510,7 @@ function drawFlat() {
       ctx.stroke();
     }
   }
+  ctx.restore();
   ctx.font = '12px Inter, sans-serif'; ctx.fillStyle = '#f2e9dc';
   for (const m of store.meta.landmarks.filter((x) => x.k !== 'sensor')) {
     const x = x0 + (m.c[0] - lo0) / (lo1 - lo0) * side, y = y0 + (1 - (m.c[1] - la0) / (la1 - la0)) * side;
@@ -509,6 +532,7 @@ function writeHash() {
   if (st.pick) p.set('p', `${st.pick.lat.toFixed(4)},${st.pick.lon.toFixed(4)}`);
   if (st.mode === 'lens') p.set('lens', '1');
   if (!st.roads) p.set('roads', '0');
+  if (!st.water) p.set('water', '0');
   const h = `#${p}`;
   if (h === location.hash) return;
   writing = true; history.replaceState(null, '', h); setTimeout(() => { writing = false; }, 0);
@@ -519,7 +543,8 @@ async function restoreFromHash() {
   if (['air', 'where', 'weather', 'data'].includes(tab)) setTab(tab);
   setMode(p.get('lens') === '1' ? 'lens' : 'haze');
   st.roads = p.get('roads') !== '0'; $('#roads-tg').checked = st.roads;
-  if (roads) loadRoads();
+  st.water = p.get('water') !== '0'; $('#water-tg').checked = st.water;
+  if (roads) loadLayers();
   const pp = (p.get('p') || '').split(',').map(Number);
   if (pp.length === 2 && pp.every(Number.isFinite)) { st.pick = { lat: pp[0], lon: pp[1] }; if (valley) valley.setPin(pp[0], pp[1]); }
   const t = Number(p.get('t'));
