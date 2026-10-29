@@ -4,7 +4,7 @@
 // model's own floor-to-ridge contrast is a few per cent, and drawing more would show a pattern the evidence lacks.
 // A second, optional sheet shows what every plausible within-valley map agrees on (Where tab).
 import * as THREE from 'three';
-import { OrbitControls } from './vendor/OrbitControls.js?v=1793249500';
+import { OrbitControls } from './vendor/OrbitControls.js?v=1793251900';
 
 const EXAG = 2.4, SIZE = 15, HAZE_LIFT = 0.10;
 
@@ -83,9 +83,11 @@ export class Valley {
     cam.position.set(co.x, co.y, co.z);
     const ctl = this.ctl = new OrbitControls(cam, r.domElement);
     ctl.target.set(co.tx, 0, co.tz);
-    ctl.enableDamping = true; ctl.dampingFactor = 0.08; ctl.enablePan = false;
-    ctl.minDistance = 7; ctl.maxDistance = 26; ctl.maxPolarAngle = 1.25; ctl.minPolarAngle = 0.25;
+    ctl.enableDamping = true; ctl.dampingFactor = 0.08; ctl.enablePan = true; ctl.screenSpacePanning = false;
+    ctl.zoomToCursor = true;                             // zoom into whatever part of the valley is under the cursor
+    ctl.minDistance = 1.6; ctl.maxDistance = 30; ctl.maxPolarAngle = 1.3; ctl.minPolarAngle = 0.05;
     ctl.update();
+    this.home = { pos: cam.position.clone(), target: ctl.target.clone() };
 
     const geo = new THREE.PlaneGeometry(SIZE, SIZE, n - 1, n - 1);
     geo.rotateX(-Math.PI / 2);                        // x east, z south (+), y up; plane rows run north -> south
@@ -166,7 +168,12 @@ export class Valley {
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     ctl.autoRotate = !reduce; ctl.autoRotateSpeed = 0.12;
     r.domElement.addEventListener('pointerdown', () => { ctl.autoRotate = false; }, { once: true });
-    const frame = () => { ctl.update(); r.render(scene, cam); this._project(); requestAnimationFrame(frame); };
+    const frame = (t) => {
+      // keep panning on the block
+      ctl.target.x = Math.max(-SIZE / 2, Math.min(SIZE / 2, ctl.target.x));
+      ctl.target.z = Math.max(-SIZE / 2, Math.min(SIZE / 2, ctl.target.z));
+      ctl.update(); this._animate(t); r.render(scene, cam); this._project(); requestAnimationFrame(frame);
+    };
     requestAnimationFrame(frame);
   }
 
@@ -264,6 +271,92 @@ export class Valley {
     grp.renderOrder = 6; this.water = grp; this.scene.add(grp);
   }
   showWater(on) { if (this.water) this.water.visible = on; }
+
+  resetView() { this.cam.position.copy(this.home.pos); this.ctl.target.copy(this.home.target); this.ctl.update(); }
+
+  // URBAN DEVELOPMENT: share of built-up land per terrain cell (ESA WorldCover 2021), a pale sheet on the ground
+  setBuilt(b) {
+    if (!b || b.n !== this.n) return;
+    const g = this.ground.geometry.clone(), p = g.attributes.position, n = this.n;
+    for (let i = 0; i < p.count; i++) p.setY(i, p.getY(i) + 0.33);   // above the haze sheets, so haze does not tint it
+    const col = new Float32Array(p.count * 4);
+    for (let i = 0; i < p.count; i++) {
+      const c = i % n, r = n - 1 - Math.floor(i / n), x = b.pct[r * n + c] / 100;
+      col.set([0.98, 0.96, 0.92, Math.min(0.9, 0.35 + 2.2 * x) * (x > 0.05 ? 1 : 0) * this.edge[i]], i * 4);
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 4));
+    this.built = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false }));
+    this.built.renderOrder = 7; this.built.visible = false; this.scene.add(this.built);
+  }
+  showBuilt(on) { if (this.built) this.built.visible = on; }
+
+  // WEATHER: terrain wind as arrows, rain as falling streaks (rate = the hour's valley rain), and the top of the mixed
+  // layer as a translucent lid above the valley floor (below the ridges when the air is trapped)
+  _ensureWeather() {
+    if (this.wx) return;
+    const grp = new THREE.Group();
+    this.windLines = new THREE.LineSegments(new THREE.BufferGeometry(),
+      new THREE.LineBasicMaterial({ color: 0xdfeef5, transparent: true, opacity: 0.9, depthWrite: false }));
+    const NR = 2400, rp = new Float32Array(NR * 6);
+    for (let i = 0; i < NR; i++) {
+      const x = (Math.random() - 0.5) * SIZE * 0.92, z = (Math.random() - 0.5) * SIZE * 0.92, y = Math.random() * 6;
+      rp.set([x, y, z, x, y - 0.18, z], i * 6);
+    }
+    const rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(rp, 3));
+    this.rain = new THREE.LineSegments(rg, new THREE.LineBasicMaterial({ color: 0x9cc8e6, transparent: true, opacity: 0.55, depthWrite: false }));
+    this.rainN = 0;
+    this.lid = new THREE.Mesh(new THREE.PlaneGeometry(SIZE * 0.9, SIZE * 0.9).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0xbfd9e8, transparent: true, opacity: 0.13, depthWrite: false, side: THREE.DoubleSide }));
+    const edgeLine = new THREE.LineSegments(new THREE.EdgesGeometry(this.lid.geometry),
+      new THREE.LineBasicMaterial({ color: 0xbfd9e8, transparent: true, opacity: 0.6 }));
+    this.lid.add(edgeLine);
+    grp.add(this.windLines, this.rain, this.lid);
+    for (const o of [this.windLines, this.rain, this.lid]) o.renderOrder = 8;
+    this.wx = grp; this.wx.visible = false; this.scene.add(grp);
+  }
+  setWeather({ wind, rain, blh, floorElev }) {
+    this._ensureWeather();
+    const T = this.T, pts = [];
+    if (wind) {
+      const step = Math.max(1, Math.round(wind.gx / 18));
+      let vmax = 0.5; for (let c = 0; c < wind.U.length; c++) vmax = Math.max(vmax, Math.hypot(wind.U[c], wind.V[c]));
+      for (let r = step >> 1; r < wind.gy; r += step) for (let c = step >> 1; c < wind.gx; c += step) {
+        const k = r * wind.gx + c, u = wind.U[k], v = wind.V[k], sp = Math.hypot(u, v);
+        if (sp < 0.05) continue;
+        const lat = wind.lats[r], lon = wind.lons[c];
+        if (lat < T.lat0 || lat > T.lat1 || lon < T.lon0 || lon > T.lon1) continue;
+        const p0 = this.lonLatToScene(lon, lat, 0.22), L = 0.15 + 0.5 * sp / vmax;
+        const dx = u / sp * L, dz = -v / sp * L;                    // scene z points south
+        const p1 = new THREE.Vector3(p0.x + dx, p0.y, p0.z + dz);
+        pts.push(p0.x, p0.y, p0.z, p1.x, p1.y, p1.z);
+        const hx = -dx * 0.35, hz = -dz * 0.35;                      // arrowhead
+        pts.push(p1.x, p1.y, p1.z, p1.x + hx - hz * 0.6, p1.y, p1.z + hz + hx * 0.6);
+        pts.push(p1.x, p1.y, p1.z, p1.x + hx + hz * 0.6, p1.y, p1.z + hz - hx * 0.6);
+      }
+    }
+    this.windLines.geometry.dispose();
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    this.windLines.geometry = g;
+    // rain: drops in proportion to the rate (about 2,400 at 5 mm/h and above)
+    this.rainN = Number.isFinite(rain) && rain >= 0.1 ? Math.round(2400 * Math.min(1, rain / 5)) : 0;
+    this.rain.geometry.setDrawRange(0, this.rainN * 2);
+    // lid at floor elevation + mixing height (vertical scale as the terrain)
+    if (Number.isFinite(blh)) {
+      this.lid.visible = true;
+      this.lid.position.y = (Math.min(floorElev + blh, T.zmax + 1500) - T.zmin) / 1000 * EXAG;
+    } else this.lid.visible = false;
+  }
+  showWeather(on) { this._ensureWeather(); this.wx.visible = on; }
+  _animate() {
+    if (!this.wx || !this.wx.visible || !this.rainN) return;
+    const p = this.rain.geometry.attributes.position, a = p.array;
+    for (let i = 0; i < this.rainN; i++) {
+      let y = a[i * 6 + 1] - 0.09;
+      if (y < 0) y += 6;
+      a[i * 6 + 1] = y; a[i * 6 + 4] = y - 0.18;
+    }
+    p.needsUpdate = true;
+  }
 
   _gridAt(q, i) {
     const n = this.n, c = i % n, rr = n - 1 - Math.floor(i / n), T = this.T, g = this.grid;

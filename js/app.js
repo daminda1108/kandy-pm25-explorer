@@ -3,12 +3,12 @@
 // contrast-stretch label (bottom left), and a point card that follows its pin. Everything else sits in Details, closed
 // by default. The engine (store.js) is unchanged: every number comes from store.field() exactly as the QA gate checks.
 // History: v2 "the valley breathes" is git tag v2-valley-breathes; build record kandy_pm25/docs/webapp_A_build_plan_2026-10-29.md.
-import { $, $$, getJSON, compass } from './util.js?v=1793249500';
-import { activeCity } from './cities.js?v=1793249500';
-import { Store, STORE_FCST } from './store.js?v=1793249500';
-import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793249500';
-import { Valley, webglOK, pmCss, pmColour } from './valley.js?v=1793249500';
-import { envelope, verdict, cellOf, km, townAnswer } from './where.js?v=1793249500';
+import { $, $$, getJSON, compass } from './util.js?v=1793251900';
+import { activeCity } from './cities.js?v=1793251900';
+import { Store, STORE_FCST } from './store.js?v=1793251900';
+import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793251900';
+import { Valley, webglOK, pmCss, pmColour } from './valley.js?v=1793251900';
+import { envelope, verdict, cellOf, km, townAnswer } from './where.js?v=1793251900';
 
 const CITY = activeCity();
 const LT = CITY.tzOffsetH * 3600;
@@ -25,8 +25,9 @@ const STRETCH = 4;
 
 const store = new Store(CITY);
 const st = { year: null, gi: 0, f: null, tab: 'air', drawer: false, conf: false, trueScale: false, pick: null,
-             playing: false, timer: null, env: null, roads: true, water: true };
+             playing: false, timer: null, env: null, roads: true, water: true, urban: false, weather: false, cardAt: null };
 let valley = null, parts = null, daily = null, spread = null, flatCv = null, roads = null, hydro = null, ELEV = null;
+let built = null, floorElev = 480;
 
 const ltDate = (ts) => new Date((ts + LT) * 1000);
 const hhmm = (ts) => { const d = ltDate(ts); return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
@@ -46,6 +47,10 @@ async function boot() {
   [terrain, parts, daily, spread] = await Promise.all(['terrain3d', 'pattern_parts', 'daily', 'spatial_spread']
     .map((k) => getJSON(`${store.base}/static/${k}.json`).catch(() => null)));
   ELEV = store.static.fields.elev.flat();
+  if (terrain) {                                   // median elevation of the valley floor (cells below 520 m): base of the lid
+    const fl = terrain.elev.filter((e) => e < 520).sort((a, b) => a - b);
+    if (fl.length) floorElev = fl[Math.floor(fl.length / 2)];
+  }
   if (terrain && webglOK()) {
     valley = new Valley($('#scene'), { terrain, meta: store.meta, grid: store.meta.grid,
                                        camera: innerWidth < 760 ? 'phone' : 'wide', onPick: (la, lo) => pick(la, lo) });
@@ -102,6 +107,7 @@ function render() {
     valley.setConfidence(st.conf && st.env ? st.env : null);
     valley.setHazeStrength(st.conf ? 0.6 : 1);
   } else drawFlat();
+  renderWeather3d(f);
   renderNow(f);
   renderKey(f);
   drawDay(); markYear();
@@ -156,6 +162,7 @@ function nearestPlace(lat, lon) {
 function placePoint(x, y) {                      // keep the card beside its pin and on screen
   const el = $('#point'); if (el.hidden) return;
   if (innerWidth < 760) { el.style.transform = ''; return; }   // phone: docked above the time strip (CSS)
+  if (st.cardAt) { el.style.transform = `translate(${st.cardAt[0]}px, ${st.cardAt[1]}px)`; return; }
   const w = el.offsetWidth, h = el.offsetHeight;
   let px = x + 16, py = y - 24;
   if (px + w > innerWidth - 12) px = Math.max(12, x - w - 16);
@@ -169,14 +176,16 @@ async function renderPoint(f) {
   el.hidden = false;
   const { lat, lon } = st.pick, i = cellOf(store.meta.grid, lat, lon), np = nearestPlace(lat, lon);
   $('#pt-name').textContent = np.d < 0.8 ? np.m.n : np.d < 2.5 ? `Near ${np.m.n}` : `${lat.toFixed(3)}° N, ${lon.toFixed(3)}° E`;
-  $('#pt-sub').textContent = `About ${f0(ELEV[i])} m above sea level · 1 km cell`;
   const v = Math.max(f.q50[i], 0), rel = f.basin > 0.5 ? (v / f.basin - 1) * 100 : 0;
   $('#pt-val').textContent = f1(v);
   const r = $('#pt-rel'); r.textContent = `${sg(rel)} vs valley`; r.className = 'pr ' + (rel > 2 ? 'up' : rel < -2 ? 'dn' : 'q');
-  $('#pt-rng').textContent = `likely ${f0(Math.min(f.q05[i], v))}–${f0(Math.max(f.q95[i], v))} µg/m³ this hour`;
+  $('#pt-sub').textContent = `${f0(ELEV[i])} m · likely ${f0(Math.min(f.q05[i], v))}–${f0(Math.max(f.q95[i], v))}`
+    + (built ? ` · ${f0(builtAt(lat, lon))} % built` : '');
   if (st.env) {
-    const [, txt] = verdict(st.env, i);
-    $('#pt-verdict').textContent = `Across the plausible maps: ${txt.charAt(0).toLowerCase() + txt.slice(1)}.`;
+    const [cls, txt] = verdict(st.env, i);
+    $('#pt-verdict').textContent = cls === 'up' ? 'Plausible maps: above average' : cls === 'dn' ? 'Plausible maps: below average'
+      : txt.startsWith('About') ? 'Plausible maps: about average' : 'Plausible maps disagree';
+    $('#pt-verdict').title = txt;
   }
   if (!flatCv && valley && valley.pinP == null) valley.setPin(lat, lon);
   if (flatCv) { const g = flatCv._geo, [lo0, la0, lo1, la1] = store.meta.grid.bbox;
@@ -184,7 +193,7 @@ async function renderPoint(f) {
   // this spot through the local day, against the valley average (dashed)
   const s = scalars(), d0 = dayStart(f.tsUTC), key = `${st.year}|${d0}|${i}`;
   const draw = (pts) => {
-    const svg = $('#pt-spark'), W = svg.clientWidth || 212, H = 44; svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const svg = $('#pt-spark'), W = svg.clientWidth || 180, H = 30; svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     const ym = Math.max(20, ...pts.map((p) => Math.max(p.v, p.b))) * 1.08;
     const X = (t) => (t - d0) / 86400 * W, Y = (u) => H - 2 - u / ym * (H - 6);
     const L = (k) => pts.map((p) => `${X(p.t).toFixed(1)},${Y(p[k]).toFixed(1)}`).join(' ');
@@ -346,7 +355,7 @@ function openDrawer(on, tab) {
   if (st.f) writeHash();
 }
 function pick(lat, lon) {
-  st.pick = { lat, lon }; sparkKey = '';
+  st.pick = { lat, lon }; sparkKey = ''; st.cardAt = null;
   if (valley) valley.setPin(lat, lon);
   if (st.f) render();
 }
@@ -376,6 +385,56 @@ async function goLatest() {
   const ys = store.meta.years, s = await store.getScalars(ys[ys.length - 1]);
   return seek(ys[ys.length - 1], s.hours_utc.length - 1);
 }
+// ── layers: urban development and weather ─────────────────────────────────────────────────────────────────
+async function setUrban(on) {
+  st.urban = on; $('#urban-tg').checked = on; $('#k-urban').hidden = !on;
+  if (on && !built) {
+    built = await getJSON(`${store.base}/static/built.json`).catch(() => null);
+    if (valley && built) valley.setBuilt(built);
+  }
+  if (valley) valley.showBuilt(on); else if (st.f) drawFlat();
+  if (st.f) { renderPoint(st.f); writeHash(); }
+}
+function builtAt(lat, lon) {
+  const n = built.n, r = Math.round((lat - built.lat0) / (built.lat1 - built.lat0) * (n - 1));
+  const c = Math.round((lon - built.lon0) / (built.lon1 - built.lon0) * (n - 1));
+  return r >= 0 && r < n && c >= 0 && c < n ? built.pct[r * n + c] : NaN;
+}
+let wxSeq = 0, wxWind = null;
+async function renderWeather3d(f) {
+  $('#k-wx').hidden = !st.weather;
+  if (!st.weather) { if (valley) valley.showWeather(false); return; }
+  const my = ++wxSeq, wind = await store.windField(st.year, st.gi).catch(() => null);
+  if (my !== wxSeq) return;
+  wxWind = wind;
+  if (valley) { valley.setWeather({ wind, rain: f.rain, blh: f.blh, floorElev }); valley.showWeather(true); }
+  else drawFlat();
+  const bits = [];
+  if (Number.isFinite(f.wspd)) bits.push(f.wspd < 0.5 ? 'calm' : `wind ${f.wspd.toFixed(1)} m/s from the ${compass(f.wdir)}`);
+  bits.push(Number.isFinite(f.rain) ? (f.rain >= 0.1 ? `rain ${f.rain.toFixed(1)} mm this hour` : 'no rain') : 'rain not carried');
+  if (Number.isFinite(f.blh)) bits.push(`air mixed to ${f0(f.blh)} m (the lid)`);
+  $('#k-wx').textContent = bits.join(' · ') + (wind ? '' : ' · no wind field for this hour');
+}
+function setWeather(on) { st.weather = on; $('#wx-tg').checked = on; if (st.f) { renderWeather3d(st.f); writeHash(); } }
+
+// the point card can be dragged by its title; it then stays where it is put until closed or a new spot is chosen
+function wireDrag() {
+  const el = $('#point'), h = $('#pt-drag');
+  let start = null;
+  h.addEventListener('pointerdown', (e) => {
+    if (innerWidth < 760 || e.target.closest('.x')) return;
+    const m = /translate\((-?[\d.]+)px, (-?[\d.]+)px\)/.exec(el.style.transform) || [0, 0, 0];
+    start = [e.clientX, e.clientY, +m[1], +m[2]]; h.setPointerCapture(e.pointerId);
+  });
+  h.addEventListener('pointermove', (e) => {
+    if (!start) return;
+    const x = Math.max(4, Math.min(innerWidth - el.offsetWidth - 4, start[2] + e.clientX - start[0]));
+    const y = Math.max(4, Math.min(innerHeight - el.offsetHeight - 4, start[3] + e.clientY - start[1]));
+    st.cardAt = [x, y]; el.style.transform = `translate(${x}px, ${y}px)`;
+  });
+  h.addEventListener('pointerup', () => { start = null; });
+}
+
 function setTrueScale(on) { st.trueScale = on; $('#true-tg').checked = on; if (st.f) render(); }
 function wire() {
   $$('.tabs button').forEach((b) => b.addEventListener('click', () => openDrawer(true, b.dataset.tab)));
@@ -388,6 +447,10 @@ function wire() {
   $('#water-tg').addEventListener('change', (e) => { st.water = e.target.checked; loadLayers(); writeHash(); });
   $('#w-conf').addEventListener('change', (e) => { st.conf = e.target.checked; render(); });
   $('#true-tg').addEventListener('change', (e) => setTrueScale(e.target.checked));
+  $('#urban-tg').addEventListener('change', (e) => setUrban(e.target.checked));
+  $('#wx-tg').addEventListener('change', (e) => setWeather(e.target.checked));
+  $('#reset-view').addEventListener('click', () => { if (valley) valley.resetView(); });
+  wireDrag();
   $('#k-stretch').addEventListener('click', () => setTrueScale(!st.trueScale));
   $('#point-x').addEventListener('click', unpick);
   $('#pt-csv').addEventListener('click', () => st.pick && downloadPointCSV(store, st.f, st.pick.lat, st.pick.lon, CITY));
@@ -493,6 +556,29 @@ function drawFlat() {
   }
   cv._geo = { x0, y0, side };
   const P = toPx(cv._geo, ...g.bbox);
+  if (st.urban && built) {
+    const bc = document.createElement('canvas'); bc.width = built.n; bc.height = built.n;
+    const bx = bc.getContext('2d'), bi = bx.createImageData(built.n, built.n);
+    for (let r = 0; r < built.n; r++) for (let c = 0; c < built.n; c++) {
+      const o = ((built.n - 1 - r) * built.n + c) * 4; bi.data.set([237, 227, 209, Math.min(230, 3.2 * built.pct[r * built.n + c])], o);
+    }
+    bx.putImageData(bi, 0, 0); ctx.drawImage(bc, x0, y0, side, side);
+  }
+  if (st.weather && wxWind) {
+    ctx.strokeStyle = 'rgba(223,238,245,.9)'; ctx.lineWidth = 1.2; ctx.beginPath();
+    const w = wxWind, step = Math.max(1, Math.round(w.gx / 18));
+    let vmax = 0.5; for (let c = 0; c < w.U.length; c++) vmax = Math.max(vmax, Math.hypot(w.U[c], w.V[c]));
+    for (let r = step >> 1; r < w.gy; r += step) for (let c = step >> 1; c < w.gx; c += step) {
+      const k = r * w.gx + c, u = w.U[k], v = w.V[k], sp = Math.hypot(u, v); if (sp < 0.05) continue;
+      const [px, py] = P([w.lons[c], w.lats[r]]), L = (0.3 + 0.7 * sp / vmax) * side / 36;
+      const ex = px + u / sp * L, ey = py - v / sp * L;
+      ctx.moveTo(px, py); ctx.lineTo(ex, ey);
+      const a = Math.atan2(ey - py, ex - px);
+      ctx.moveTo(ex, ey); ctx.lineTo(ex - 5 * Math.cos(a - 0.5), ey - 5 * Math.sin(a - 0.5));
+      ctx.moveTo(ex, ey); ctx.lineTo(ex - 5 * Math.cos(a + 0.5), ey - 5 * Math.sin(a + 0.5));
+    }
+    ctx.stroke();
+  }
   ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, side, side); ctx.clip();
   const path = (pts) => pts.forEach((q, j) => { const [px, py] = P(q); if (j) ctx.lineTo(px, py); else ctx.moveTo(px, py); });
   if (st.water && hydro) {
@@ -534,6 +620,8 @@ function writeHash() {
   if (st.conf) p.set('agree', '1');
   if (!st.roads) p.set('roads', '0');
   if (!st.water) p.set('water', '0');
+  if (st.urban) p.set('urban', '1');
+  if (st.weather) p.set('wx', '1');
   const h = `#${p}`;
   if (h === location.hash) return;
   writing = true; history.replaceState(null, '', h); setTimeout(() => { writing = false; }, 0);
@@ -548,6 +636,8 @@ async function restoreFromHash() {
   st.roads = p.get('roads') !== '0'; $('#roads-tg').checked = st.roads;
   st.water = p.get('water') !== '0'; $('#water-tg').checked = st.water;
   if (roads) loadLayers();
+  if ((p.get('urban') === '1') !== st.urban) setUrban(p.get('urban') === '1');
+  st.weather = p.get('wx') === '1'; $('#wx-tg').checked = st.weather;
   const pp = (p.get('p') || '').split(',').map(Number);
   if (pp.length === 2 && pp.every(Number.isFinite)) { st.pick = { lat: pp[0], lon: pp[1] }; if (valley) valley.setPin(pp[0], pp[1]); }
   const t = Number(p.get('t'));

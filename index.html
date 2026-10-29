@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/site.css?v=1793249500" />
+  <link rel="stylesheet" href="css/site.css?v=1793251900" />
   <script type="importmap">{ "imports": { "three": "./js/vendor/three.module.min.js" } }</script>
   <script>window.CITY_ID = 'kandy';</script>
 </head>
@@ -34,10 +34,14 @@
     <button class="tb" id="open-about">About</button>
   </nav>
   <div class="pop glass" id="layers" hidden>
+    <label><input type="checkbox" id="wx-tg" /> Weather: wind, rain, mixing height</label>
+    <label><input type="checkbox" id="urban-tg" /> Urban development (built-up land)</label>
     <label><input type="checkbox" id="roads-tg" checked /> Roads</label>
     <label><input type="checkbox" id="water-tg" checked /> Rivers &amp; lakes</label>
     <label><input type="checkbox" id="w-conf" /> Where the plausible maps agree</label>
-    <label><input type="checkbox" id="true-tg" /> True colour scale (no stretch)</label>
+    <label><input type="checkbox" id="true-tg" /> True colour scale (no ×4 stretch)</label>
+    <button class="lnk" id="reset-view">Reset the view</button>
+    <p class="fine hint">Drag to turn · scroll or pinch to zoom where you point · right-drag or two fingers to move</p>
   </div>
 
   <!-- map key: the honest label for the contrast stretch -->
@@ -45,18 +49,18 @@
     <div class="kramp"></div>
     <div class="kt num"><span>5</span><span>15</span><span>35</span><span>75 µg/m³</span></div>
     <button class="kstretch" id="k-stretch" title="Switch to the true colour scale"></button>
+    <div class="kline" id="k-wx" hidden></div>
+    <div class="kline" id="k-urban" hidden><i class="sw-urban"></i>Pale ground = built-up land (ESA WorldCover 2021)</div>
   </div>
 
   <!-- point details: follows its pin -->
   <div class="point glass" id="point" hidden>
-    <button class="x" id="point-x" aria-label="Close">×</button>
-    <div class="pn" id="pt-name">–</div>
-    <div class="pe fine" id="pt-sub">–</div>
-    <div class="pv num"><span id="pt-val">–</span><small>µg/m³</small> <span class="pr" id="pt-rel">–</span></div>
-    <div class="fine num" id="pt-rng">–</div>
-    <svg class="spark" id="pt-spark" aria-label="This spot through the day"></svg>
-    <div class="pvd" id="pt-verdict">–</div>
-    <button class="lnk" id="pt-csv">Download this day here (CSV)</button>
+    <div class="phd" id="pt-drag" title="Drag to move"><span class="pn" id="pt-name">–</span>
+      <button class="x" id="point-x" aria-label="Close">×</button></div>
+    <div class="pv num"><span id="pt-val">–</span><small>µg/m³</small><span class="pr" id="pt-rel">–</span></div>
+    <div class="fine num" id="pt-sub">–</div>
+    <svg class="spark" id="pt-spark" aria-label="This spot through the day (dashed: valley average)"></svg>
+    <div class="pft"><span class="fine" id="pt-verdict">–</span><button class="lnk" id="pt-csv">CSV</button></div>
   </div>
 
   <!-- time -->
@@ -165,6 +169,6 @@
     </article>
   </div>
 
-  <script type="module" src="js/app.js?v=1793249500"></script>
+  <script type="module" src="js/app.js?v=1793251900"></script>
 </body>
 </html>

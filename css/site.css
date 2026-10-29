@@ -62,6 +62,10 @@ a { color: var(--accent); }
 .pop { position: fixed; top: 56px; right: var(--gut); z-index: 9; padding: 10px 14px; display: grid; gap: 8px; font-size: 13px; }
 .pop label { display: flex; gap: 8px; align-items: center; cursor: pointer; color: var(--paper-2); white-space: nowrap; }
 .pop input { accent-color: var(--accent); }
+.pop .hint { margin: 2px 0 0; max-width: 240px; white-space: normal; }
+.pop .lnk { text-align: left; }
+.kline { margin-top: 5px; font-size: 11.5px; color: var(--paper-2); display: flex; gap: 6px; align-items: center; }
+.sw-urban { width: 14px; height: 9px; border-radius: 2px; background: rgb(237,227,209); display: inline-block; }
 
 /* map key */
 .key { position: fixed; left: var(--gut); bottom: 92px; width: 260px; z-index: 6; }
@@ -71,16 +75,19 @@ a { color: var(--accent); }
 .kstretch { margin-top: 6px; background: none; border: 0; padding: 0; font-size: 11.5px; color: var(--accent); cursor: pointer; text-align: left; }
 .kstretch:hover { text-decoration: underline; }
 
-/* point card */
-.point { position: fixed; left: 0; top: 0; z-index: 7; width: 240px; padding: 12px 14px 10px; pointer-events: auto; }
-.point .x { position: absolute; right: 4px; top: 4px; }
-.pn { font: 400 italic 18px/1.15 var(--font-display); padding-right: 18px; }
-.pv { margin: 8px 0 0; font: 600 26px/1 var(--font-ui); letter-spacing: -.02em; }
-.pv small { font: 400 12px var(--font-ui); color: var(--paper-3); margin-left: 3px; }
-.pr { font: 500 12px var(--font-ui); margin-left: 6px; }
+/* point card: compact, follows its pin until dragged */
+.point { position: fixed; left: 0; top: 0; z-index: 7; width: 200px; padding: 6px 10px 8px; border-radius: 10px; }
+.phd { display: flex; align-items: center; gap: 6px; cursor: grab; touch-action: none; user-select: none; margin-right: -6px; }
+.phd:active { cursor: grabbing; }
+.pn { flex: 1; font: 400 italic 15px/1.2 var(--font-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.point .x { font-size: 17px; padding: 0 4px; }
+.pv { margin: 2px 0 0; font: 600 20px/1.1 var(--font-ui); letter-spacing: -.02em; display: flex; align-items: baseline; gap: 3px; }
+.pv small { font: 400 11px var(--font-ui); color: var(--paper-3); }
+.pr { font: 500 11.5px var(--font-ui); margin-left: auto; }
 .pr.up { color: var(--accent); } .pr.dn { color: var(--cool); } .pr.q { color: var(--paper-3); }
-.spark { display: block; width: 100%; height: 44px; margin: 8px 0 4px; }
-.pvd { font-size: 12px; color: var(--paper-2); margin-bottom: 6px; }
+.point .fine { font-size: 11px; }
+.spark { display: block; width: 100%; height: 30px; margin: 4px 0 2px; }
+.pft { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .lnk { background: none; border: 0; padding: 0; font-size: 11.5px; color: var(--accent); cursor: pointer; }
 
 /* time strip */
@@ -159,7 +166,6 @@ select { background: var(--ink-2); border: 1px solid var(--ink-line); border-rad
   .step { width: 16px; }
   .drawer { left: 0; right: 0; bottom: 0; top: 34vh; width: auto; border-radius: 16px 16px 0 0; z-index: 12; }
   .point { left: 14px; right: 14px; top: auto; bottom: 78px; width: auto; transform: none !important; }
-  .point .spark { height: 36px; }
   .year .yl { display: none; }
   .key { bottom: 78px; }
   body:has(.point:not([hidden])) .key { display: none; }
