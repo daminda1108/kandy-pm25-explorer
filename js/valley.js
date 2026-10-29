@@ -4,7 +4,7 @@
 // model's own floor-to-ridge contrast is a few per cent, and drawing more would show a pattern the evidence lacks.
 // A second, optional sheet shows what every plausible within-valley map agrees on (Where tab).
 import * as THREE from 'three';
-import { OrbitControls } from './vendor/OrbitControls.js?v=1793246500';
+import { OrbitControls } from './vendor/OrbitControls.js?v=1793249500';
 
 const EXAG = 2.4, SIZE = 15, HAZE_LIFT = 0.10;
 
@@ -123,6 +123,10 @@ export class Valley {
     this.haze2 = sheet(0.30); this.haze2.material.opacity = 0.35;
     this.over = sheet(0.36); this.over.renderOrder = 10; this.over.visible = false;
     this.hazeK = 1; this.mode = 'haze'; this.roads = null;
+    // CONTRAST STRETCH (2026-10-29): colour is drawn for mean + stretch*(value - mean). The valley average keeps its
+    // true colour; differences across the valley are drawn `stretch` times stronger so the model's pattern can be
+    // seen. Numbers are never stretched; the page labels the factor and offers true scale.
+    this.stretch = 1; this.onPinMove = null;
 
     // labels (HTML, projected each frame) + one marker for the picked point
     this.labelLayer = Object.assign(document.createElement('div'), { className: 'labels' });
@@ -181,7 +185,13 @@ export class Valley {
       d.style.opacity = s.z < 1 && Math.abs(s.x) < 1.05 && Math.abs(s.y) < 1.05 ? 1 : 0;
     };
     for (const m of this.marks) put(m.p, m.d);
-    if (this.pinP) put(this.pinP, this.pin);
+    if (this.pinP) {
+      put(this.pinP, this.pin);
+      if (this.onPinMove) {                                // the point card follows its pin as the view turns
+        const s = this.pinP.clone().project(this.cam);
+        this.onPinMove((s.x * 0.5 + 0.5) * w, (-s.y * 0.5 + 0.5) * h);
+      }
+    }
   }
 
   setPin(lat, lon) {
@@ -191,6 +201,8 @@ export class Valley {
 
   setHazeStrength(k) { this.hazeK = k; if (this._q) this.setField(this._q); }
   setMode(m) { this.mode = m; if (this._q) this.setField(this._q); }
+  setStretch(k) { this.stretch = k; if (this._q) this.setField(this._q); }
+  followPin(fn) { this.onPinMove = fn; }
 
   // OpenStreetMap roads draped on the ground, under the haze (rank 3 trunk/primary, 2 secondary, 1 the rest)
   setRoads(features) {
@@ -267,9 +279,14 @@ export class Valley {
     const lens = this.mode === 'lens';
     for (let i = 0; i < col.count; i++) {
       const v = this._gridAt(q50, i);
-      const [rgb, a] = lens ? lensColour(mean > 0.5 ? (Math.max(v, 0) / mean - 1) * 100 : 0) : pmColour(v);
+      const [rgb, a] = lens ? lensColour(mean > 0.5 ? (Math.max(v, 0) / mean - 1) * 100 : 0)
+        : pmColour(Math.max(0, mean + this.stretch * (Math.max(v, 0) - mean)));
       a4[i * 4] = rgb[0] / 255; a4[i * 4 + 1] = rgb[1] / 255; a4[i * 4 + 2] = rgb[2] / 255;
-      a4[i * 4 + 3] = (lens ? 0.92 : 0.5 * this.hazeK) * a * this.edge[i];
+      // haze thickness follows the departure from the valley average (same stretch as the colour): dirtier cells
+      // thicker, cleaner cells thinner, so pooled air reads as haze and clean ridges show through
+      const rel = mean > 0.5 ? Math.max(v, 0) / mean - 1 : 0;
+      const thick = lens ? 1 : Math.min(1.25, Math.max(0.08, 0.6 + 2.5 * this.stretch * rel));
+      a4[i * 4 + 3] = Math.min(0.95, (lens ? 0.92 : 0.8 * this.hazeK) * a * thick) * this.edge[i];
     }
     col.needsUpdate = true;
     this.haze2.geometry.setAttribute('color', col);

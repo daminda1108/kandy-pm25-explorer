@@ -7,150 +7,137 @@
   <meta name="description" content="Fine-particle air pollution (PM2.5) over Kandy, Sri Lanka, reconstructed hour by hour at 1 km since 2019: how much, when, and how sure we are about where." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/site.css?v=1793246500" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/site.css?v=1793249500" />
   <script type="importmap">{ "imports": { "three": "./js/vendor/three.module.min.js" } }</script>
   <script>window.CITY_ID = 'kandy';</script>
 </head>
 <body>
   <div id="loading"><p>Filling the valley…</p></div>
-  <div id="scene" aria-label="3-D view of the Kandy valley with this hour's PM2.5 drawn as haze. Drag to turn, click a place to ask about it."></div>
+  <div id="scene" aria-label="3-D view of the Kandy valley with this hour's PM2.5 drawn as haze. Drag to turn, click a place for its details."></div>
   <canvas id="flat" aria-label="Map of the Kandy valley with this hour's PM2.5"></canvas>
-  <div class="vignette"></div>
+  <div class="shade"></div>
 
-  <header class="top">
+  <!-- the hour, in one glance -->
+  <section class="now" aria-live="polite">
     <div class="mark">Kandy Air</div>
-    <span class="badge" id="tier"><i></i><span>Anchored year</span></span>
-    <div class="seg" role="group" aria-label="What the valley shows">
-      <button data-mode="haze" aria-pressed="true" title="Colour = how much PM2.5, on the WHO scale">Haze</button>
-      <button data-mode="lens" aria-pressed="false" title="Colour = above or below this hour's valley average">Pattern</button>
-    </div>
-    <label class="roadsw"><input type="checkbox" id="roads-tg" checked /> Roads</label>
-    <label class="roadsw"><input type="checkbox" id="water-tg" checked /> Rivers &amp; lakes</label>
-    <nav>
-      <button class="navb" data-tab="where">Where</button>
-      <button class="navb" id="open-about">How it works</button>
-      <button class="navb" data-tab="data">Download</button>
-    </nav>
-  </header>
-
-  <section class="card glass" aria-live="polite">
-    <div class="when"><span class="eyebrow" id="c-date">–</span><span class="t num" id="c-time">–</span></div>
-    <div class="big num"><span id="c-val">–</span><small>µg/m³ valley average</small></div>
-    <div class="sub">City centre <b class="num" id="c-core">–</b> · 90 % range <span class="num" id="c-rng">–</span></div>
-    <div class="scale" id="c-scale"><div class="ramp"></div><div class="band" id="c-band"></div><div class="med" id="c-med"></div></div>
+    <div class="eyebrow" id="c-date">–</div>
+    <div class="val num"><span id="c-val">–</span><small>µg/m³</small><span class="t" id="c-time">–</span></div>
     <p class="say" id="c-say"></p>
-    <div class="split" title="Regional background vs what the valley adds"><div class="b" id="c-sb"></div><div class="l" id="c-sl"></div></div>
-    <div class="legend2"><span><i style="background:var(--bg-tone)"></i>Arrived from outside <b class="num" id="c-pb">–</b></span>
-      <span><i style="background:var(--accent)"></i>Made in the valley <b class="num" id="c-pl">–</b></span></div>
-    <div class="foot" id="c-badges"></div>
+    <div class="scale" id="c-scale"><div class="ramp"></div><div class="band" id="c-band"></div><div class="med" id="c-med"></div></div>
+    <div class="sub num">Valley average · likely <span id="c-rng">–</span> · <span id="tier">anchored year</span></div>
   </section>
 
-  <div class="lens-key glass" id="lens-key" hidden>
-    <div class="lk-ramp"></div>
-    <div class="lk-ticks num"><span>−20 %</span><span>−10</span><span>valley average</span><span>+10</span><span>+20 %</span></div>
-    <p id="lens-now" class="num"></p>
-    <p class="fine">Pattern lens: each place against this hour's valley average. This is the model's assumed pattern
-      (a satellite surface, stronger where air is trapped under the ridges), not a measurement. In valleys with monitoring
-      networks, towns 3–10 km apart typically differ by about 13 %.</p>
+  <nav class="tools">
+    <button class="tb" id="open-layers" aria-expanded="false">Layers</button>
+    <button class="tb" id="open-details" aria-expanded="false">Details</button>
+    <button class="tb" id="open-about">About</button>
+  </nav>
+  <div class="pop glass" id="layers" hidden>
+    <label><input type="checkbox" id="roads-tg" checked /> Roads</label>
+    <label><input type="checkbox" id="water-tg" checked /> Rivers &amp; lakes</label>
+    <label><input type="checkbox" id="w-conf" /> Where the plausible maps agree</label>
+    <label><input type="checkbox" id="true-tg" /> True colour scale (no stretch)</label>
   </div>
 
-  <aside class="drawer glass">
-    <div class="tabs" role="tablist">
-      <button role="tab" data-tab="air" aria-selected="true">Air mass</button>
-      <button role="tab" data-tab="where" aria-selected="false">Where</button>
-      <button role="tab" data-tab="weather" aria-selected="false">Weather</button>
-      <button role="tab" data-tab="data" aria-selected="false">Data</button>
+  <!-- map key: the honest label for the contrast stretch -->
+  <div class="key" id="key">
+    <div class="kramp"></div>
+    <div class="kt num"><span>5</span><span>15</span><span>35</span><span>75 µg/m³</span></div>
+    <button class="kstretch" id="k-stretch" title="Switch to the true colour scale"></button>
+  </div>
+
+  <!-- point details: follows its pin -->
+  <div class="point glass" id="point" hidden>
+    <button class="x" id="point-x" aria-label="Close">×</button>
+    <div class="pn" id="pt-name">–</div>
+    <div class="pe fine" id="pt-sub">–</div>
+    <div class="pv num"><span id="pt-val">–</span><small>µg/m³</small> <span class="pr" id="pt-rel">–</span></div>
+    <div class="fine num" id="pt-rng">–</div>
+    <svg class="spark" id="pt-spark" aria-label="This spot through the day"></svg>
+    <div class="pvd" id="pt-verdict">–</div>
+    <button class="lnk" id="pt-csv">Download this day here (CSV)</button>
+  </div>
+
+  <!-- time -->
+  <section class="time" aria-label="Time">
+    <button class="play" id="play" aria-label="Play the day">▶</button>
+    <button class="step" id="prev-day" aria-label="Previous day">‹</button>
+    <label class="date"><input type="date" id="date" aria-label="Date" /></label>
+    <button class="step" id="next-day" aria-label="Next day">›</button>
+    <div class="ribbons">
+      <div class="day" id="day"><svg id="day-svg"></svg></div>
+      <div class="year" id="year"><canvas id="year-cv"></canvas><div id="year-lab"></div></div>
+    </div>
+    <button class="tb" id="latest">Now</button>
+  </section>
+
+  <!-- everything else, closed by default -->
+  <aside class="drawer glass" id="drawer" hidden>
+    <div class="dhead">
+      <div class="tabs" role="tablist">
+        <button role="tab" data-tab="air" aria-selected="true">Air</button>
+        <button role="tab" data-tab="where" aria-selected="false">Where</button>
+        <button role="tab" data-tab="weather" aria-selected="false">Weather</button>
+        <button role="tab" data-tab="data" aria-selected="false">Data</button>
+      </div>
+      <button class="x" id="close-details" aria-label="Close details">×</button>
     </div>
     <div class="body">
       <div class="pane on" id="p-air">
-        <h3 id="air-h">Where this hour's air came from</h3>
         <p id="air-txt"></p>
+        <div class="split"><div class="b" id="c-sb"></div><div class="l" id="c-sl"></div></div>
+        <div class="legend2"><span><i style="background:var(--bg-tone)"></i>From outside <b class="num" id="c-pb">–</b></span>
+          <span><i style="background:var(--accent)"></i>Made in the valley <b class="num" id="c-pl">–</b></span></div>
         <svg class="mini" id="air-stack" viewBox="0 0 300 120" preserveAspectRatio="none" aria-label="Background and local share through the day"></svg>
-        <div class="kv">
-          <span>Background (regional)</span><span class="num" id="air-b">–</span>
-          <span>Added in the valley</span><span class="num" id="air-l">–</span>
-          <span>Local share, 2019–23</span><span class="num">about half (0.45–0.52)</span>
-        </div>
-        <p class="fine">The split comes from a physical cap on how much of the air can be regional, not from a
-          measured source split. Station-based checks put the local share between about 0.36 and 0.53.</p>
+        <p class="fine">The split comes from a physical cap on how much of the air can be regional, not from a measured
+          source split; across 2019–2023 the valley's own share is about half.</p>
         <div id="air-episode"></div>
+        <h4>Documented episodes</h4>
+        <div class="chips" id="episodes"></div>
       </div>
 
       <div class="pane" id="p-where">
-        <h3>Where in the valley, and how sure</h3>
-        <div class="ladder">
-          <div class="rung"><b>How much</b><div class="dots"><i class="f"></i><i class="f"></i><i class="f"></i></div>
-            <small>Level scaled to the regulatory station (2019–2023)</small></div>
-          <div class="rung"><b>When</b><div class="dots"><i class="f"></i><i class="f"></i><i class="f"></i></div>
-            <small>Daily cycle fitted to the same station</small></div>
-          <div class="rung"><b>Where in the valley</b><div class="dots"><i class="f"></i><i></i><i></i></div>
-            <small>Physics, not measured: shown as what every plausible map agrees on</small></div>
-        </div>
-        <p class="fine">Kandy's town station reads about twice the Hantana ridge sensor, but mostly by day and least at
-          night, when air is most trapped. That is not the signature of air pooling on the valley floor (more likely town
-          traffic, or the low-cost sensor reading high in humid nights), so the map's floor-to-ridge contrast is not
-          sharpened to match it.</p>
         <p id="w-mix"></p>
-        <label class="toggle"><input type="checkbox" id="w-conf" checked /> Colour what the plausible maps agree on</label>
-        <div class="legend">
-          <span><i class="sw" style="background:rgba(232,163,90,.75)"></i>Above the valley average in every plausible map</span>
-          <span><i class="sw" style="background:rgba(143,199,178,.75)"></i>Below it in every plausible map</span>
-          <span><i class="sw" style="border:1px dashed var(--paper-3)"></i>Clear: the maps disagree, or the difference is under 3 %</span>
-        </div>
-        <p class="fine" id="w-members"></p>
         <h4>Places</h4>
         <div class="places" id="w-places"></div>
-        <p class="fine">Click anywhere on the valley to ask about that spot.</p>
         <h4>Two towns</h4>
         <div class="pair"><select id="town-a" aria-label="First town"></select><span>and</span><select id="town-b" aria-label="Second town"></select></div>
         <div id="w-towns"></div>
+        <h4>How sure</h4>
+        <p class="fine">How much and when are scaled and fitted to the regulatory station. Where in the valley is physics,
+          not measurement: the map's pattern is a satellite surface, stronger where air is trapped under the ridges, and
+          its strength is not known. <span id="w-members"></span></p>
+        <p class="fine">Kandy's town station reads about twice the Hantana ridge sensor, but mostly by day and least at
+          night, when air is most trapped: more likely town traffic or the sensor reading high in humid nights than air
+          pooling on the floor, so the map is not sharpened to match it.</p>
       </div>
 
       <div class="pane" id="p-weather">
-        <h3 id="wx-h">The weather this hour</h3>
         <div class="kv" id="wx-kv"></div>
         <p id="wx-txt"></p>
         <p class="fine" id="wx-cav"></p>
       </div>
 
       <div class="pane" id="p-data">
-        <h3>The data</h3>
-        <p id="d-tier"></p>
         <div class="chips">
           <button class="chip" id="dl-png">Picture of this view</button>
           <button class="chip" id="dl-field">This hour, every 1 km cell (CSV)</button>
-          <button class="chip" id="dl-point">This day at the chosen spot (CSV)</button>
           <button class="chip" id="copy-link">Copy a link to this hour</button>
         </div>
-        <h4>What you can trust</h4>
-        <p id="d-integrity"></p>
+        <p class="fine" id="d-tier"></p>
+        <p class="fine" id="d-integrity"></p>
         <h4>Credits</h4>
-        <div class="kv" id="d-credits"></div>
+        <div class="kv fine" id="d-credits"></div>
         <p class="fine">Research reconstruction by Daminda Alahakoon (University of Peradeniya). Code and model:
           <a href="https://github.com/daminda1108/kandy_pm25_model">kandy_pm25_model</a>.</p>
       </div>
     </div>
   </aside>
 
-  <section class="timebar glass" aria-label="Time">
-    <button class="play" id="play" aria-label="Play the day">▶</button>
-    <div class="tb-head">
-      <button class="step" id="prev-day" aria-label="Previous day">‹</button>
-      <input type="date" id="date" aria-label="Date" />
-      <button class="step" id="next-day" aria-label="Next day">›</button>
-      <span class="sp"></span>
-      <span class="hint fine">Hour by hour this day · click to jump</span>
-      <select id="episodes" aria-label="Documented episodes"><option value="">Documented episodes…</option></select>
-      <button class="chip" id="latest">Latest &amp; forecast</button>
-    </div>
-    <div class="day" id="day"><svg id="day-svg" viewBox="0 0 1000 80"></svg></div>
-    <div class="year" id="year"><canvas id="year-cv"></canvas><div id="year-lab"></div></div>
-  </section>
-
   <div class="modal" id="about" role="dialog" aria-modal="true" aria-labelledby="about-h">
     <article class="glass">
-      <button class="chip close" id="close-about">Close</button>
+      <button class="x" id="close-about" aria-label="Close">×</button>
       <h2 id="about-h">How it works</h2>
       <p>Each hour the valley's air is built from two parts. A <b>regional background</b> arrives from outside, carried by
         the monsoon winds over the whole island. On top of it the valley <b>adds its own</b>: traffic, cooking, burning,
@@ -158,30 +145,26 @@
       <h3>How much, and when</h3>
       <p>The hour-to-hour total comes from a machine-learning model trained on two low-cost sensors near Kandy and driven
         by weather and a global chemistry forecast. Its yearly level comes from satellite estimates, scaled to the Central
-        Environmental Authority's Kandy monitoring station; its daily cycle is fitted to that station too. Checked on
-        later station years (2022–2023) the level is about right on average (about 1 % low, with wide scatter from day
-        to day); day to day it does about as well as a scaled global reanalysis.</p>
+        Environmental Authority's Kandy monitoring station; its daily cycle is fitted to that station too. Checked on later
+        station years (2022–2023) the level is about right on average (about 1 % low, with wide scatter from day to day);
+        day to day it does about as well as a scaled global reanalysis.</p>
       <h3>Where in the valley</h3>
       <p>Nothing measures how the air differs between Kandy's towns: the valley has one regulatory station. The map's
-        pattern is physics, not measurement: a satellite surface, stronger where air is trapped under the ridges. How
-        strong that effect is cannot be pinned down, so the <b>Where</b> view shows the whole family of patterns the
-        evidence allows and colours only what they all agree on. In valley cities that do have monitoring networks, two
-        places 3–10 km apart usually differ by about 13 % in their long-run PM<sub>2.5</sub>; models learned there could
-        not say which of two such places is dirtier, and maps of roads, buildings and population could not say which
-        places differ more.</p>
+        pattern is physics, not measurement. Its differences are small (a few per cent on a windy afternoon, up to a
+        fifth between floor and ridges on a still night), so the map <b>draws them four times stronger</b> to make them
+        visible; every number you read is unstretched, and Layers → True colour scale turns the stretch off. In valley
+        cities that do have monitoring networks, two places 3–10 km apart usually differ by about 13 %; models learned
+        there could not say which of two such places is dirtier.</p>
       <h3>Three kinds of year</h3>
       <p><b>2019–2023</b> are anchored to the satellite level and the station. <b>2024–2026</b> are an extension modelled
         from weather and chemistry: the level there reads about 40 % low against the station, so treat it as uncertain.
-        The <b>forecast</b> is a demonstration: a forecast level with a typical pattern for that hour.</p>
-      <h3>The range</h3>
-      <p>Every number comes with a 90 % range, widened after checking against the station so that it holds about nine
-        hours in ten.</p>
+        <b>Now</b> shows the latest analysis and a demonstration forecast.</p>
       <h3>Colours</h3>
       <p>Colours are fixed to World Health Organization values (2021): 5 µg/m³ is the annual guideline, 15 the 24-hour
-        guideline, 35 and 75 interim targets. A colour always means the same concentration.</p>
+        guideline, 35 and 75 interim targets. The valley average always has its true colour.</p>
     </article>
   </div>
 
-  <script type="module" src="js/app.js?v=1793246500"></script>
+  <script type="module" src="js/app.js?v=1793249500"></script>
 </body>
 </html>

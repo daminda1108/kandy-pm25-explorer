@@ -1,14 +1,14 @@
-// app.js — Kandy Air, redesign A "The Valley" (2026-10-29; approved phase-0 mock-ups in design/mockups/, plan
-// kandy_pm25/docs/webapp_A_build_plan_2026-10-29.md). The valley full-bleed with this hour's haze; the answer on one
-// card; detail in a drawer (Air mass, Where, Weather, Data); time along the bottom (this day hour by hour, every day
-// since 2019). The engine (store.js) is unchanged: every number comes from store.field() exactly as the QA gate checks.
-// Replaces v2 "the valley breathes" (git tag v2-valley-breathes).
-import { $, $$, getJSON, compass } from './util.js?v=1793246500';
-import { activeCity } from './cities.js?v=1793246500';
-import { Store, STORE_FCST } from './store.js?v=1793246500';
-import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793246500';
-import { Valley, webglOK, pmCss, pmColour, lensColour } from './valley.js?v=1793246500';
-import { envelope, verdict, cellOf, townAnswer } from './where.js?v=1793246500';
+// app.js — Kandy Air, design A "The Valley", minimal pass (2026-10-29). The map is the page. Over it: the hour in a
+// few lines of type (top left), three quiet tools (top right), a slim time strip (bottom), the colour key with the
+// contrast-stretch label (bottom left), and a point card that follows its pin. Everything else sits in Details, closed
+// by default. The engine (store.js) is unchanged: every number comes from store.field() exactly as the QA gate checks.
+// History: v2 "the valley breathes" is git tag v2-valley-breathes; build record kandy_pm25/docs/webapp_A_build_plan_2026-10-29.md.
+import { $, $$, getJSON, compass } from './util.js?v=1793249500';
+import { activeCity } from './cities.js?v=1793249500';
+import { Store, STORE_FCST } from './store.js?v=1793249500';
+import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793249500';
+import { Valley, webglOK, pmCss, pmColour } from './valley.js?v=1793249500';
+import { envelope, verdict, cellOf, km, townAnswer } from './where.js?v=1793249500';
 
 const CITY = activeCity();
 const LT = CITY.tzOffsetH * 3600;
@@ -17,14 +17,16 @@ const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 // Sri Lanka's monsoon calendar (Department of Meteorology)
 const SEASON = (m) => (m === 12 || m <= 2 ? 'North-east monsoon' : m <= 4 ? 'First inter-monsoon'
   : m <= 9 ? 'South-west monsoon' : 'Second inter-monsoon');
-const PLACES = [['Kandy', 'city centre'], ['Katugastota', 'river, north'], ['Peradeniya', 'west, university'],
-                ['Halloluwa', 'valley floor, north-west']];
+const PLACES = ['Kandy', 'Katugastota', 'Peradeniya', 'Halloluwa', 'Ampitiya'];
 const SCALE_MAX = 90;
+// Differences across the valley are drawn STRETCH times stronger in colour (never in numbers). The model's contrasts
+// are a few per cent to about a fifth (stagnant floor vs ridges, +16 % median at rush hours); x4 makes them readable.
+const STRETCH = 4;
 
 const store = new Store(CITY);
-const st = { year: null, gi: 0, f: null, tab: 'air', conf: true, pick: null, playing: false, timer: null, env: null,
-             mode: 'haze', roads: true, water: true };
-let valley = null, parts = null, daily = null, spread = null, flatCv = null, roads = null, ZONE = null, hydro = null;
+const st = { year: null, gi: 0, f: null, tab: 'air', drawer: false, conf: false, trueScale: false, pick: null,
+             playing: false, timer: null, env: null, roads: true, water: true };
+let valley = null, parts = null, daily = null, spread = null, flatCv = null, roads = null, hydro = null, ELEV = null;
 
 const ltDate = (ts) => new Date((ts + LT) * 1000);
 const hhmm = (ts) => { const d = ltDate(ts); return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
@@ -34,6 +36,8 @@ const epTs = (e) => Date.parse(e.ts.replace(' ', 'T') + ':00Z') / 1000 - LT + 18
 const tierOf = (y) => (y === STORE_FCST ? 'forecast' : ((store.meta.tiers || {}).extension || []).includes(y) ? 'extension' : 'anchored');
 const f1 = (x) => (Number.isFinite(x) ? x.toFixed(1) : '–');
 const f0 = (x) => (Number.isFinite(x) ? Math.round(x).toString() : '–');
+const sg = (x) => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(0)} %`;
+const stretch = () => (st.trueScale ? 1 : STRETCH);
 
 // ── boot ────────────────────────────────────────────────────────────────────────────────────────────────────
 async function boot() {
@@ -41,17 +45,15 @@ async function boot() {
   let terrain;
   [terrain, parts, daily, spread] = await Promise.all(['terrain3d', 'pattern_parts', 'daily', 'spatial_spread']
     .map((k) => getJSON(`${store.base}/static/${k}.json`).catch(() => null)));
+  ELEV = store.static.fields.elev.flat();
   if (terrain && webglOK()) {
     valley = new Valley($('#scene'), { terrain, meta: store.meta, grid: store.meta.grid,
                                        camera: innerWidth < 760 ? 'phone' : 'wide', onPick: (la, lo) => pick(la, lo) });
+    valley.followPin(placePoint);
   } else {
     document.body.classList.add('no3d'); $('#scene').style.display = 'none';
     flatCv = $('#flat'); flatCv.addEventListener('click', flatPick);
   }
-  // valley floor / ridges = lowest / highest quarter of the 1 km cells by mean elevation (lens readout)
-  const el = store.static.fields.elev.flat(), qs = [...el].sort((a, b) => a - b);
-  const zlo = qs[Math.floor(qs.length * 0.25)], zhi = qs[Math.floor(qs.length * 0.75)];
-  ZONE = el.map((e) => (e <= zlo ? 1 : e >= zhi ? 2 : 0));
   fillStatic();
   wire();
   drawYear();
@@ -92,99 +94,116 @@ const scalars = () => store.scalars.get(st.year);
 
 // ── render ──────────────────────────────────────────────────────────────────────────────────────────────────
 function render() {
-  const f = st.f, s = scalars(), tier = tierOf(st.year);
+  const f = st.f;
   st.env = parts ? envelope(parts, f, store.meta.eps_floor || 0) : null;
   if (valley) {
-    valley.setMode(st.mode);
+    valley.setStretch(stretch());
     valley.setField(f.q50);
-    const showConf = st.tab === 'where' && st.conf && st.env;
-    valley.setConfidence(showConf ? st.env : null);
-    valley.setHazeStrength(showConf ? 0.55 : 1);
+    valley.setConfidence(st.conf && st.env ? st.env : null);
+    valley.setHazeStrength(st.conf ? 0.6 : 1);
   } else drawFlat();
-  renderCard(f, tier);
-  renderTier(tier);
-  renderLens(f);
+  renderNow(f);
+  renderKey(f);
   drawDay(); markYear();
-  renderAir(f, s); renderWhere(f); renderWeather(f);
+  renderPoint(f);
+  if (st.drawer) renderDrawer(f);
   $('#date').value = isoDay(f.tsUTC);
   writeHash();
 }
 
-// lens readout: the contrasts the physics predicts (floor vs ridges when air is trapped; centre vs valley)
-function renderLens(f) {
-  $('#lens-key').hidden = st.mode !== 'lens';
-  if (st.mode !== 'lens') return;
-  let a = 0, na = 0, b = 0, nb = 0, mx = -Infinity, mn = Infinity;
-  f.q50.forEach((v, i) => {
-    v = Math.max(v, 0); mx = Math.max(mx, v); mn = Math.min(mn, v);
-    if (ZONE[i] === 1) { a += v; na++; } else if (ZONE[i] === 2) { b += v; nb++; }
-  });
-  const pf = b > 0 ? (a / na / (b / nb) - 1) * 100 : 0, pc = f.basin > 0.5 ? (f.core / f.basin - 1) * 100 : 0;
-  const sg = (x) => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(0)} %`;
-  $('#lens-now').innerHTML = f.basin < 1 ? 'The valley is almost clean this hour.'
-    : `This hour: valley floor <b>${sg(pf)}</b> against the ridges · city centre <b>${sg(pc)}</b> against the valley`
-      + ` average · dirtiest 1 km cell <b>${mn > 0.1 ? sg((mx / mn - 1) * 100) : '–'}</b> against the cleanest.`;
-}
-
-// roads and hydrology share one file (layers.json, OpenStreetMap), loaded after the first view
-let layersJob = null;
-async function loadLayers() {
-  if (!layersJob) layersJob = getJSON(`${store.base}/static/layers.json`).catch(() => ({})).then((L) => {
-    roads = L.roads || []; hydro = { rivers: L.rivers || [], water: L.water || [] };
-    if (valley) { valley.setRoads(roads); valley.setWater(hydro.rivers, hydro.water); }
-  });
-  await layersJob;
-  if (valley) { valley.showRoads(st.roads); valley.showWater(st.water); } else if (st.f) drawFlat();
-}
-const loadRoads = loadLayers;
-
-function episodeNear(ts) { return store.meta.episodes.find((e) => Math.abs(epTs(e) - ts) < 2.5 * 86400); }
-
-function renderCard(f, tier) {
-  const d = ltDate(f.tsUTC), m = d.getUTCMonth() + 1;
-  $('#c-date').textContent = `${DOW[d.getUTCDay()]} · ${d.getUTCDate()} ${MON[m - 1]} ${d.getUTCFullYear()} · ${SEASON(m)}`;
+function renderNow(f) {
+  const d = ltDate(f.tsUTC), m = d.getUTCMonth() + 1, tier = tierOf(st.year);
+  $('#c-date').textContent = `${DOW[d.getUTCDay()]} ${d.getUTCDate()} ${MON[m - 1]} ${d.getUTCFullYear()} · ${SEASON(m)}`;
   $('#c-time').textContent = hhmm(f.tsUTC);
   $('#c-val').textContent = f1(f.basin);
-  $('#c-core').textContent = f0(f.core);
   $('#c-rng').textContent = `${f0(f.basin05)}–${f0(f.basin95)}`;
   const X = (x) => Math.min(100, Math.max(0, x / SCALE_MAX * 100));
   $('#c-band').style.left = X(f.basin05) + '%'; $('#c-band').style.width = Math.max(1, X(f.basin95) - X(f.basin05)) + '%';
   $('#c-med').style.left = `calc(${X(f.basin)}% - 1px)`;
-  const local = Math.max(f.basin - f.B, 0), pb = Math.min(100, f.B / Math.max(f.B + local, 1e-6) * 100);
-  $('#c-sb').style.width = pb + '%'; $('#c-sl').style.width = (100 - pb) + '%';
-  $('#c-pb').textContent = Math.round(pb) + '%'; $('#c-pl').textContent = Math.round(100 - pb) + '%';
   $('#c-say').textContent = sentence(f);
-  const b = [], env = st.env;
-  if (env) b.push(env.w > 0.5 ? 'Shallow mixing · air held in the valley'
-    : env.w > 0 ? 'Partly mixed' : `Mixed to ${f0(f.blh)} m`);
-  const ep = episodeNear(f.tsUTC);
-  if (ep) b.push(`Documented: ${ep.title}`);
-  if (tier === 'forecast') b.push(store.kindAt(st.year, st.gi) === 'recent' ? 'Recent analysis' : 'Forecast (demonstration)');
-  $('#c-badges').innerHTML = b.map((t) => `<span class="badge">${t}</span>`).join('');
+  $('#tier').textContent = tier === 'anchored' ? 'anchored year'
+    : tier === 'extension' ? 'extension year, level uncertain'
+    : store.kindAt(st.year, st.gi) === 'recent' ? 'latest analysis' : 'forecast (demonstration)';
 }
 
-// one plain sentence. WHO guidelines are averages over a day or a year, so an hour is compared loosely ("at the level
-// of"), never as a breach
+// one plain sentence: level against WHO values (compared loosely, guidelines are averages) and why the hour looks so
 function sentence(f) {
-  const v = f.basin;
-  const lvl = v < 5 ? 'Clean air, below the WHO annual guideline'
-    : v < 15 ? 'Fairly clean: under the level of the WHO 24-hour guideline'
-    : v < 35 ? 'Above the level of the WHO 24-hour guideline'
-    : v < 75 ? 'Polluted: more than twice the level of the WHO 24-hour guideline' : 'Heavily polluted';
-  const local = Math.max(v - f.B, 0);
-  const why = v < 1 ? '.' : local > f.B ? ', most of it made in the valley.'
-    : local > 0.25 * f.B ? ', a regional load plus the valley\'s own.' : ', almost all of it arriving from outside.';
-  return lvl + why;
+  const v = f.basin, env = st.env;
+  const lvl = v < 5 ? 'Clean air' : v < 15 ? 'Fairly clean air' : v < 35 ? 'Above the WHO daily guideline'
+    : v < 75 ? 'Polluted, over twice the WHO daily guideline' : 'Heavily polluted';
+  const held = env && env.w > 0.5 ? 'air held low in the valley' : env && env.w > 0 ? 'air partly held in the valley'
+    : 'air well mixed above the ridges';
+  return `${lvl}; ${held}.`;
 }
 
-function renderTier(tier) {
-  const t = $('#tier'), lab = t.querySelector('span');
-  t.className = 'badge' + (tier === 'extension' ? ' ext' : tier === 'forecast' ? ' fc' : '');
-  lab.textContent = tier === 'anchored' ? 'Anchored year · level scaled to the CEA station'
-    : tier === 'extension' ? 'Extension year · level uncertain (reads ~40 % low)' : 'Forecast · demonstration';
+// the key under the colour ramp: what the colours mean and how much the contrast is stretched
+function renderKey(f) {
+  let a = 0, na = 0, b = 0, nb = 0;
+  const qs = [...ELEV].sort((x, y) => x - y), lo = qs[Math.floor(qs.length * 0.25)], hi = qs[Math.floor(qs.length * 0.75)];
+  f.q50.forEach((v, i) => { v = Math.max(v, 0); if (ELEV[i] <= lo) { a += v; na++; } else if (ELEV[i] >= hi) { b += v; nb++; } });
+  const pf = b > 0 ? (a / na / (b / nb) - 1) * 100 : 0;
+  $('#k-stretch').innerHTML = st.trueScale
+    ? `True colour scale · floor ${sg(pf)} vs ridges this hour · <u>stretch ×${STRETCH}</u>`
+    : `Differences across the valley drawn ×${STRETCH} · floor ${sg(pf)} vs ridges this hour · <u>true scale</u>`;
 }
 
-// ── time bar ────────────────────────────────────────────────────────────────────────────────────────────────
+// ── point card ──────────────────────────────────────────────────────────────────────────────────────────────
+function nearestPlace(lat, lon) {
+  let best = null, bd = Infinity;
+  for (const m of store.meta.landmarks) if (m.k !== 'sensor') { const d = km(m.c, [lon, lat]); if (d < bd) { bd = d; best = m; } }
+  return { m: best, d: bd };
+}
+function placePoint(x, y) {                      // keep the card beside its pin and on screen
+  const el = $('#point'); if (el.hidden) return;
+  if (innerWidth < 760) { el.style.transform = ''; return; }   // phone: docked above the time strip (CSS)
+  const w = el.offsetWidth, h = el.offsetHeight;
+  let px = x + 16, py = y - 24;
+  if (px + w > innerWidth - 12) px = Math.max(12, x - w - 16);
+  py = Math.max(56, Math.min(py, innerHeight - h - 90));
+  el.style.transform = `translate(${Math.round(px)}px, ${Math.round(py)}px)`;
+}
+let sparkKey = '';
+async function renderPoint(f) {
+  const el = $('#point');
+  if (!st.pick) { el.hidden = true; return; }
+  el.hidden = false;
+  const { lat, lon } = st.pick, i = cellOf(store.meta.grid, lat, lon), np = nearestPlace(lat, lon);
+  $('#pt-name').textContent = np.d < 0.8 ? np.m.n : np.d < 2.5 ? `Near ${np.m.n}` : `${lat.toFixed(3)}° N, ${lon.toFixed(3)}° E`;
+  $('#pt-sub').textContent = `About ${f0(ELEV[i])} m above sea level · 1 km cell`;
+  const v = Math.max(f.q50[i], 0), rel = f.basin > 0.5 ? (v / f.basin - 1) * 100 : 0;
+  $('#pt-val').textContent = f1(v);
+  const r = $('#pt-rel'); r.textContent = `${sg(rel)} vs valley`; r.className = 'pr ' + (rel > 2 ? 'up' : rel < -2 ? 'dn' : 'q');
+  $('#pt-rng').textContent = `likely ${f0(Math.min(f.q05[i], v))}–${f0(Math.max(f.q95[i], v))} µg/m³ this hour`;
+  if (st.env) {
+    const [, txt] = verdict(st.env, i);
+    $('#pt-verdict').textContent = `Across the plausible maps: ${txt.charAt(0).toLowerCase() + txt.slice(1)}.`;
+  }
+  if (!flatCv && valley && valley.pinP == null) valley.setPin(lat, lon);
+  if (flatCv) { const g = flatCv._geo, [lo0, la0, lo1, la1] = store.meta.grid.bbox;
+    if (g) placePoint(g.x0 + (lon - lo0) / (lo1 - lo0) * g.side, g.y0 + (1 - (lat - la0) / (la1 - la0)) * g.side); }
+  // this spot through the local day, against the valley average (dashed)
+  const s = scalars(), d0 = dayStart(f.tsUTC), key = `${st.year}|${d0}|${i}`;
+  const draw = (pts) => {
+    const svg = $('#pt-spark'), W = svg.clientWidth || 212, H = 44; svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const ym = Math.max(20, ...pts.map((p) => Math.max(p.v, p.b))) * 1.08;
+    const X = (t) => (t - d0) / 86400 * W, Y = (u) => H - 2 - u / ym * (H - 6);
+    const L = (k) => pts.map((p) => `${X(p.t).toFixed(1)},${Y(p[k]).toFixed(1)}`).join(' ');
+    svg.innerHTML = `<polyline points="${L('b')}" fill="none" stroke="rgba(242,233,220,.45)" stroke-dasharray="3 3"/>
+      <polyline points="${L('v')}" fill="none" stroke="${pmCss(v)}" stroke-width="2"/>
+      <line x1="${X(f.tsUTC)}" x2="${X(f.tsUTC)}" y1="0" y2="${H}" stroke="#f2e9dc" stroke-width="1"/>`;
+  };
+  if (key === sparkKey && renderPoint.cache) { draw(renderPoint.cache); return; }
+  sparkKey = key;
+  const pts = [];
+  for (const gi of dayIdx()) {
+    const g = await store.field(st.year, gi);
+    pts.push({ t: s.hours_utc[gi], v: Math.max(g.q50[i], 0), b: g.basin });
+  }
+  if (sparkKey !== key) return;
+  renderPoint.cache = pts; draw(pts);
+}
+
+// ── time strip ──────────────────────────────────────────────────────────────────────────────────────────────
 function dayIdx() {
   const s = scalars(), d0 = dayStart(st.f.tsUTC), out = [];
   let i = st.gi; while (i > 0 && s.hours_utc[i - 1] >= d0) i--;
@@ -192,52 +211,36 @@ function dayIdx() {
   return out;
 }
 function drawDay() {
-  const s = scalars(), idx = dayIdx(), svg = $('#day-svg'), top = 14;
+  const s = scalars(), idx = dayIdx(), svg = $('#day-svg');
   if (!idx.length) return;
-  // drawn in the element's own pixels so the labels are not stretched
-  const W = Math.max(200, svg.clientWidth), H = Math.max(40, svg.clientHeight);
+  const W = Math.max(200, svg.clientWidth), H = Math.max(30, svg.clientHeight);
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  const vals = idx.map((i) => ({ t: s.hours_utc[i], v: s.basin[i], b: s.B[i],
-                                  lo: Math.max(s.T05[i], s.B_lo ? s.B_lo[i] : 0), hi: s.T95[i] }));
-  const ymax = Math.max(40, ...vals.map((x) => x.hi)) * 1.05;
-  const d0 = dayStart(st.f.tsUTC);
-  const xs = (t) => (t - d0) / 86400 * W, ys = (p) => H - 2 - Math.max(0, p) / ymax * (H - top - 4);
-  const line = (k) => vals.map((x) => `${xs(x.t)},${ys(x[k])}`).join(' ');
-  const band = vals.map((x) => `${xs(x.t)},${ys(x.hi)}`).join(' ') + ' '
-    + vals.slice().reverse().map((x) => `${xs(x.t)},${ys(x.lo)}`).join(' ');
-  const now = xs(st.f.tsUTC), who = ys(15);
-  const ticks = [0, 6, 12, 18].map((h) => `<text x="${h / 24 * W + 4}" y="10" fill="rgba(242,233,220,.45)" font-size="10" font-family="Inter">${String(h).padStart(2, '0')}:00</text>`).join('');
-  svg.innerHTML = `
-    <polygon points="${band}" fill="rgba(242,233,220,.10)"/>
-    <line x1="0" x2="${W}" y1="${who}" y2="${who}" stroke="rgba(143,199,178,.5)" stroke-dasharray="2 6" vector-effect="non-scaling-stroke"/>
-    ${W < 520 ? '' : `<text x="${W * 0.36}" y="${who - 4}" fill="rgba(143,199,178,.9)" font-size="10" font-family="Inter" paint-order="stroke" stroke="#17140f" stroke-width="3">WHO 24-h guideline · 15</text>`}
-    <polyline points="${line('b')}" fill="none" stroke="#b9a88f" stroke-width="1.5" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>
-    <polyline points="${line('v')}" fill="none" stroke="#e8a35a" stroke-width="2.4" vector-effect="non-scaling-stroke"/>
-    <line x1="${now}" x2="${now}" y1="0" y2="${H}" stroke="#f2e9dc" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
-    ${ticks}`;
+  const vals = idx.map((i) => ({ t: s.hours_utc[i], v: s.basin[i], lo: Math.max(s.T05[i], s.B_lo ? s.B_lo[i] : 0), hi: s.T95[i] }));
+  const ymax = Math.max(40, ...vals.map((x) => x.hi)) * 1.05, d0 = dayStart(st.f.tsUTC);
+  const xs = (t) => (t - d0) / 86400 * W, ys = (p) => H - 1 - Math.max(0, p) / ymax * (H - 12);
+  const band = vals.map((x) => `${xs(x.t)},${ys(x.hi)}`).join(' ') + ' ' + vals.slice().reverse().map((x) => `${xs(x.t)},${ys(x.lo)}`).join(' ');
+  const bars = vals.map((x) => `<rect x="${xs(x.t) - W / 48 + 1}" y="${ys(x.v)}" width="${W / 24 - 2}" height="${H - 1 - ys(x.v)}" rx="1.5" fill="${pmCss(x.v)}" opacity="${x.t === st.f.tsUTC ? 1 : 0.55}"/>`).join('');
+  const ticks = [0, 6, 12, 18].map((h) => `<text x="${h / 24 * W + 2}" y="8" fill="rgba(242,233,220,.4)" font-size="9" font-family="Inter">${String(h).padStart(2, '0')}</text>`).join('');
+  svg.innerHTML = `<polygon points="${band}" fill="rgba(242,233,220,.07)"/>${bars}
+    <line x1="0" x2="${W}" y1="${ys(15)}" y2="${ys(15)}" stroke="rgba(143,199,178,.55)" stroke-dasharray="2 5"/>${ticks}`;
 }
 function drawYear() {
   if (!daily) return;
-  const cv = $('#year-cv'), w = cv.clientWidth, h = 22, dpr = Math.min(devicePixelRatio, 2);
+  const cv = $('#year-cv'), w = cv.clientWidth, h = 6, dpr = Math.min(devicePixelRatio, 2);
   if (!w) return;
   cv.width = w * dpr; cv.height = h * dpr;
   const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const D = daily.days, n = D.length, bw = w / n;
-  D.forEach((d, i) => { ctx.globalAlpha = d[3] === 'extension' ? 0.45 : 1; ctx.fillStyle = pmCss(d[1]); ctx.fillRect(i * bw, 2, Math.ceil(bw) + 0.5, 18); });
+  D.forEach((d, i) => { ctx.globalAlpha = d[3] === 'extension' ? 0.4 : 1; ctx.fillStyle = pmCss(d[1]); ctx.fillRect(i * bw, 0, Math.ceil(bw) + 0.5, h); });
   ctx.globalAlpha = 1;
   const lab = $('#year-lab'); lab.innerHTML = '';
-  let last = '', firstExt = -1;
+  let last = '';
   D.forEach((d, i) => {
     const y = isoDay(d[0] + 3600).slice(0, 4);
-    if (d[3] === 'extension') { if (firstExt < 0) firstExt = i; return; }
     if (y !== last) { const s = document.createElement('span'); s.className = 'yl'; s.style.left = (i / n * 100) + '%'; s.textContent = y; lab.append(s); last = y; }
   });
-  if (firstExt >= 0) {
-    const e = document.createElement('span'); e.className = 'ext'; e.style.left = (firstExt / n * 100) + '%';
-    e.textContent = innerWidth < 760 ? '2024– · EXTENSION' : '2024 – 2026 · EXTENSION, LEVEL UNCERTAIN'; lab.append(e);
-  }
   const m = document.createElement('div'); m.id = 'year-mark';
-  Object.assign(m.style, { position: 'absolute', top: '0', width: '2px', height: '24px', background: 'var(--paper)' });
+  Object.assign(m.style, { position: 'absolute', top: '-3px', width: '2px', height: '12px', background: 'var(--paper)', borderRadius: '1px' });
   lab.append(m); markYear();
 }
 function markYear() {
@@ -248,15 +251,21 @@ function markYear() {
   m.style.left = `calc(${i / D.length * 100}% - 1px)`;
 }
 
-// ── drawer panes ────────────────────────────────────────────────────────────────────────────────────────────
+// ── details drawer ──────────────────────────────────────────────────────────────────────────────────────────
+function renderDrawer(f) {
+  const s = scalars();
+  if (st.tab === 'air') renderAir(f, s);
+  else if (st.tab === 'where') renderWhere(f);
+  else if (st.tab === 'weather') renderWeather(f);
+}
 function renderAir(f, s) {
-  const local = Math.max(f.basin - f.B, 0);
-  $('#air-b').textContent = `${f1(f.B)} µg/m³`; $('#air-l').textContent = `${f1(local)} µg/m³`;
+  const local = Math.max(f.basin - f.B, 0), pb = Math.min(100, f.B / Math.max(f.B + local, 1e-6) * 100);
+  $('#c-sb').style.width = pb + '%'; $('#c-sl').style.width = (100 - pb) + '%';
+  $('#c-pb').textContent = Math.round(pb) + '%'; $('#c-pl').textContent = Math.round(100 - pb) + '%';
   const m = ltDate(f.tsUTC).getUTCMonth() + 1;
   const regional = f.B >= 20 ? 'a heavy regional load' : f.B >= 10 ? 'a moderate regional load' : 'fairly clean regional air';
-  $('#air-txt').innerHTML = `${SEASON(m)} air brought ${regional} (${f1(f.B)} µg/m³) into the valley. `
-    + (local < 0.5 ? 'Right now the valley adds almost nothing on top: the air is well mixed and its own emissions are carried away.'
-      : `The valley adds <b>${f1(local)}</b> of its own on top.`);
+  $('#air-txt').innerHTML = `${SEASON(m)} air brought ${regional} (<b>${f1(f.B)}</b> µg/m³) into the valley; `
+    + (local < 0.5 ? 'the valley adds almost nothing on top this hour.' : `the valley adds <b>${f1(local)}</b> of its own.`);
   const idx = dayIdx(), W = 300, H = 116, d0 = dayStart(f.tsUTC);
   const ymax = Math.max(30, ...idx.map((i) => Math.max(s.basin[i], s.B[i]))) * 1.08;
   const sx = (t) => (t - d0) / 86400 * W, sy = (p) => H - Math.max(0, p) / ymax * (H - 6);
@@ -267,37 +276,26 @@ function renderAir(f, s) {
   $('#air-stack').innerHTML = `<polygon points="${x0},${H} ${bTop} ${x1},${H}" fill="#b9a88f" opacity=".75"/>
     <polygon points="${tTop} ${bRev}" fill="#e8a35a" opacity=".85"/>
     <line x1="${xn}" x2="${xn}" y1="0" y2="${H}" stroke="#f2e9dc" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
-  const ep = episodeNear(f.tsUTC);
+  const ep = store.meta.episodes.find((e) => Math.abs(epTs(e) - f.tsUTC) < 2.5 * 86400);
   $('#air-episode').innerHTML = ep ? `<h4>${ep.title}</h4><p>${ep.note}</p><p class="fine">Source: ${ep.source}</p>` : '';
-}
-
-function placeCard(nm, sub, lat, lon) {
-  const env = st.env, i = cellOf(store.meta.grid, lat, lon), [cls, txt] = verdict(env, i);
-  const lo = env.lo[i], hi = env.hi[i], s = (x) => (x > 0 ? '+' : '') + x.toFixed(0);
-  const X = (p) => 50 + Math.max(-50, Math.min(50, p / 40 * 50));
-  const col = cls === 'up' ? 'var(--accent)' : cls === 'dn' ? 'var(--cool)' : 'rgba(242,233,220,.45)';
-  return `<div class="place"><div class="nm">${nm}<small>${sub}</small></div>
-    <div class="vd v-${cls}">${txt}</div>
-    <div class="rg">${Math.abs(hi - lo) < 1 ? s(lo) + ' %' : s(lo) + ' % to ' + s(hi) + ' %'} against the valley average
-      across the plausible maps (or 0 % in an even valley)</div>
-    <div class="bar"><u></u><i style="left:${X(lo)}%;width:${Math.max(2, X(hi) - X(lo))}%;background:${col}"></i></div></div>`;
 }
 function renderWhere(f) {
   const env = st.env;
   if (!env) { $('#w-places').innerHTML = '<p class="fine">The pattern data did not load.</p>'; return; }
-  const H = parts.H_ridge_m;
-  // H is the model's confinement height (M = 1 + k.w.c, w = (H - BLH)/H), not the ridge height (relief ~850 m)
   $('#w-mix').innerHTML = env.w > 0.5
-    ? `The air is mixed only to about <b>${f0(env.blh)} m</b>, well under the ${f0(H)} m below which the model treats the valley as trapped: this is when places can differ most.`
-    : env.w > 0 ? `The air is mixed to about <b>${f0(env.blh)} m</b>, a little under the ${f0(H)} m below which the model treats the valley as trapped.`
-    : `The air is mixed to about <b>${f0(env.blh)} m</b>, above the ${f0(H)} m below which the model treats the valley as trapped: the plausible maps differ only by the satellite surface, and an even valley is as likely.`;
-  $('#w-members').textContent = `${env.members} plausible maps, each with this hour's valley average; a perfectly even valley is also possible.`
-    + (tierOf(st.year) !== 'anchored' ? ' In this year the delivered map uses the 2019–2023 typical pattern; the plausible maps are built from this hour\'s mixing.' : '');
-  const lm = (n) => store.meta.landmarks.find((x) => x.n === n);
-  let html = '';
-  if (st.pick) html += placeCard('Your spot', `${st.pick.lat.toFixed(3)}° N, ${st.pick.lon.toFixed(3)}° E`, st.pick.lat, st.pick.lon);
-  html += PLACES.map(([n, sub]) => { const m = lm(n); return m ? placeCard(n, sub, m.c[1], m.c[0]) : ''; }).join('');
-  $('#w-places').innerHTML = html;
+    ? `The air is mixed only to about <b>${f0(env.blh)} m</b> and held in the valley: this is when places differ most.`
+    : env.w > 0 ? `The air is mixed to about <b>${f0(env.blh)} m</b>, partly held in the valley.`
+    : `The air is mixed to about <b>${f0(env.blh)} m</b>, above the ridges: places differ little this hour.`;
+  $('#w-members').textContent = `So each place is also checked against ${env.members} plausible maps with the same valley `
+    + 'average; "every map" below means all of them agree.'
+    + (tierOf(st.year) !== 'anchored' ? ' This year uses the 2019–2023 typical pattern.' : '');
+  $('#w-places').innerHTML = PLACES.map((n) => {
+    const m = store.meta.landmarks.find((x) => x.n === n); if (!m) return '';
+    const i = cellOf(store.meta.grid, m.c[1], m.c[0]), [cls, txt] = verdict(env, i);
+    const rel = f.basin > 0.5 ? (Math.max(f.q50[i], 0) / f.basin - 1) * 100 : 0;
+    return `<div class="place"><div class="nm">${n}</div><div class="vd v-${cls}">${sg(rel)}</div>
+      <div class="rg">${txt}</div></div>`;
+  }).join('');
   renderTowns(f);
 }
 function renderTowns(f) {
@@ -306,7 +304,6 @@ function renderTowns(f) {
   if (!a || !b) return;
   $('#w-towns').innerHTML = a === b ? '<p class="fine">Choose two different towns.</p>' : townAnswer(a, b, f.basin, spread);
 }
-
 function renderWeather(f) {
   const rows = [];
   if (Number.isFinite(f.wspd)) rows.push(['Wind (10 m)', f.wspd < 0.5 ? 'calm' : `${f.wspd.toFixed(1)} m/s from the ${compass(f.wdir)}`]);
@@ -328,34 +325,32 @@ function fillStatic() {
   const lm = store.meta.landmarks.filter((m) => m.k !== 'sensor');
   for (const id of ['#town-a', '#town-b']) $(id).innerHTML = lm.map((m) => `<option>${m.n}</option>`).join('');
   $('#town-a').value = 'Kandy'; $('#town-b').value = 'Peradeniya';
-  $('#episodes').innerHTML += store.meta.episodes.map((e) => `<option value="${e.id}">${e.title}</option>`).join('');
+  $('#episodes').innerHTML = store.meta.episodes.map((e) => `<button class="chip" data-ep="${e.id}">${e.title}</button>`).join('');
   $('#d-tier').textContent = store.meta.tier_note || '';
   $('#d-integrity').textContent = store.meta.integrity || '';
   $('#d-credits').innerHTML = (store.meta.credits || []).map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
-  const sc = $('#c-scale');
-  for (const w of [15, 35, 75]) {
-    const d = document.createElement('span'); d.className = 'who'; d.style.left = (w / SCALE_MAX * 100) + '%'; d.textContent = w; sc.append(d);
-  }
+  // key ticks at their true places on the 0-90 ramp
+  const kt = $('.kt'); kt.style.position = 'relative'; kt.style.height = '12px';
+  kt.innerHTML = [5, 15, 35, 75].map((w) => `<span style="position:absolute;left:${w / SCALE_MAX * 100}%;transform:translateX(-50%)">${w}</span>`).join('')
+    + '<span style="position:absolute;right:0">µg/m³</span>';
   $('#date').min = `${store.meta.years[0]}-01-01`;
 }
 
 // ── interaction ─────────────────────────────────────────────────────────────────────────────────────────────
-function setTab(tab) {
-  st.tab = tab;
-  $$('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
-  $$('.pane').forEach((p) => p.classList.toggle('on', p.id === `p-${tab}`));
-  if (st.f) render();
-}
-function setMode(m) {
-  st.mode = m === 'lens' ? 'lens' : 'haze';
-  $$('.seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === st.mode)));
-  if (st.f) render();
+function openDrawer(on, tab) {
+  st.drawer = on; if (tab) st.tab = tab;
+  $('#drawer').hidden = !on; $('#open-details').setAttribute('aria-expanded', String(on));
+  $$('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === st.tab)));
+  $$('.pane').forEach((p) => p.classList.toggle('on', p.id === `p-${st.tab}`));
+  if (on && st.f) renderDrawer(st.f);
+  if (st.f) writeHash();
 }
 function pick(lat, lon) {
-  st.pick = { lat, lon };
+  st.pick = { lat, lon }; sparkKey = '';
   if (valley) valley.setPin(lat, lon);
-  if (st.tab !== 'where') setTab('where'); else render();
+  if (st.f) render();
 }
+function unpick() { st.pick = null; if (valley) valley.setPin(null); $('#point').hidden = true; if (flatCv) drawFlat(); writeHash(); }
 async function stepHour(k) {
   const s = scalars(), gi = st.gi + k;
   if (gi >= 0 && gi < s.hours_utc.length) return seek(st.year, gi);
@@ -381,26 +376,32 @@ async function goLatest() {
   const ys = store.meta.years, s = await store.getScalars(ys[ys.length - 1]);
   return seek(ys[ys.length - 1], s.hours_utc.length - 1);
 }
+function setTrueScale(on) { st.trueScale = on; $('#true-tg').checked = on; if (st.f) render(); }
 function wire() {
-  $$('.tabs button').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
-  $$('.seg button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  $$('.tabs button').forEach((b) => b.addEventListener('click', () => openDrawer(true, b.dataset.tab)));
+  $('#open-details').addEventListener('click', () => openDrawer(!st.drawer));
+  $('#close-details').addEventListener('click', () => openDrawer(false));
+  $('#open-layers').addEventListener('click', () => {
+    const p = $('#layers'); p.hidden = !p.hidden; $('#open-layers').setAttribute('aria-expanded', String(!p.hidden));
+  });
   $('#roads-tg').addEventListener('change', (e) => { st.roads = e.target.checked; loadLayers(); writeHash(); });
   $('#water-tg').addEventListener('change', (e) => { st.water = e.target.checked; loadLayers(); writeHash(); });
-  $$('.navb[data-tab]').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
   $('#w-conf').addEventListener('change', (e) => { st.conf = e.target.checked; render(); });
+  $('#true-tg').addEventListener('change', (e) => setTrueScale(e.target.checked));
+  $('#k-stretch').addEventListener('click', () => setTrueScale(!st.trueScale));
+  $('#point-x').addEventListener('click', unpick);
+  $('#pt-csv').addEventListener('click', () => st.pick && downloadPointCSV(store, st.f, st.pick.lat, st.pick.lon, CITY));
   $('#town-a').addEventListener('change', () => renderTowns(st.f));
   $('#town-b').addEventListener('change', () => renderTowns(st.f));
+  $('#episodes').addEventListener('click', (e) => {
+    const ep = store.meta.episodes.find((x) => x.id === e.target.dataset.ep); if (ep) seekTs(epTs(ep));
+  });
   $('#play').addEventListener('click', () => play(!st.playing));
   $('#prev-day').addEventListener('click', () => seekTs(st.f.tsUTC - 86400));
   $('#next-day').addEventListener('click', () => seekTs(st.f.tsUTC + 86400));
   $('#date').addEventListener('change', (e) => {
     if (!e.target.value) return;
     seekTs(Date.parse(e.target.value + 'T00:00:00Z') / 1000 - LT + ltDate(st.f.tsUTC).getUTCHours() * 3600 + 1800);
-  });
-  $('#episodes').addEventListener('change', (e) => {
-    const ep = store.meta.episodes.find((x) => x.id === e.target.value);
-    if (ep) seekTs(epTs(ep));
-    e.target.value = '';
   });
   $('#latest').addEventListener('click', goLatest);
   $('#day').addEventListener('click', (e) => {
@@ -419,22 +420,29 @@ function wire() {
   addEventListener('keydown', (e) => {
     const tg = e.target;
     if (tg && tg.matches && tg.matches('input, select, textarea')) return;
-    if (e.key === 'Escape') $('#about').classList.remove('on');
+    if (e.key === 'Escape') { $('#about').classList.remove('on'); $('#layers').hidden = true; if (st.pick) unpick(); }
     else if (e.key === 'ArrowRight') stepHour(1);
     else if (e.key === 'ArrowLeft') stepHour(-1);
     else if (e.key === ' ' && !(tg && tg.matches && tg.matches('button'))) { e.preventDefault(); play(!st.playing); }
   });
   $('#dl-field').addEventListener('click', () => downloadFieldCSV(store, st.f, CITY));
-  $('#dl-point').addEventListener('click', () => {
-    const p = st.pick || CITY.core;
-    downloadPointCSV(store, st.f, p.lat, p.lon, CITY);
-  });
   $('#dl-png').addEventListener('click', downloadView);
   $('#copy-link').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(location.href); $('#copy-link').textContent = 'Link copied'; }
     catch { $('#copy-link').textContent = 'Copy the address bar'; }
     setTimeout(() => { $('#copy-link').textContent = 'Copy a link to this hour'; }, 1800);
   });
+}
+
+// roads and hydrology share one file (layers.json, OpenStreetMap), loaded after the first view
+let layersJob = null;
+async function loadLayers() {
+  if (!layersJob) layersJob = getJSON(`${store.base}/static/layers.json`).catch(() => ({})).then((L) => {
+    roads = L.roads || []; hydro = { rivers: L.rivers || [], water: L.water || [] };
+    if (valley) { valley.setRoads(roads); valley.setWater(hydro.rivers, hydro.water); }
+  });
+  await layersJob;
+  if (valley) { valley.showRoads(st.roads); valley.showWater(st.water); } else if (st.f) drawFlat();
 }
 
 function downloadView() {
@@ -444,77 +452,69 @@ function downloadView() {
   c.fillStyle = '#0f0d0b'; c.fillRect(0, 0, out.width, out.height); c.drawImage(src, 0, 0);
   const f = st.f, lt = ltDate(f.tsUTC).toISOString().slice(0, 16).replace('T', ' ');
   c.fillStyle = '#f2e9dc'; c.font = `${Math.round(H / 42)}px Inter, sans-serif`;
-  c.fillText(`Kandy PM2.5 · ${lt} Sri Lanka time · valley average ${f1(f.basin)} µg/m³ (90 % range ${f0(f.basin05)}–${f0(f.basin95)})`, 16, H + H / 34);
+  c.fillText(`Kandy PM2.5 · ${lt} Sri Lanka time · valley average ${f1(f.basin)} µg/m³ (likely ${f0(f.basin05)}–${f0(f.basin95)})`, 16, H + H / 34);
   c.fillStyle = 'rgba(242,233,220,.6)'; c.font = `${Math.round(H / 60)}px Inter, sans-serif`;
-  c.fillText('Research reconstruction. Level scaled to the CEA Kandy station; the within-valley pattern is physics, not measured.', 16, H + H / 17);
+  c.fillText(`Research reconstruction. Within-valley pattern is physics, not measured${st.trueScale ? '' : `; differences drawn ×${STRETCH}`}.`, 16, H + H / 17);
   const a = document.createElement('a'); a.href = out.toDataURL('image/png');
   a.download = `${CITY.downloadPrefix}_${lt.replace(/[: ]/g, '')}.png`; a.click();
 }
 
-// ── 2-D fallback (no WebGL): the 16x16 field drawn smooth, with the town names ─────────────────────────────
+// ── 2-D fallback (no WebGL): the 16x16 field drawn smooth on shaded relief, with water, roads and town names ─
+const toPx = (g, lo0, la0, lo1, la1) => ([x, y]) => [g.x0 + (x - lo0) / (lo1 - lo0) * g.side, g.y0 + (1 - (y - la0) / (la1 - la0)) * g.side];
 function drawFlat() {
-  const cv = flatCv, w = innerWidth, h = innerWidth < 760 ? Math.max(300, innerHeight * 0.52) : innerHeight;
+  const cv = flatCv, w = innerWidth, h = innerHeight;
   const dpr = Math.min(devicePixelRatio, 2); cv.width = w * dpr; cv.height = h * dpr;
   cv.style.width = w + 'px'; cv.style.height = h + 'px';
   const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = '#0f0d0b'; ctx.fillRect(0, 0, w, h);
-  const g = store.meta.grid, side = Math.min(w, h) * 0.86, x0 = (w - side) / 2, y0 = (h - side) / 2;
+  const g = store.meta.grid, side = Math.min(w, h) * 0.8, x0 = (w - side) / 2, y0 = (h - side) / 2;
   const tmp = document.createElement('canvas'); tmp.width = g.n_lon; tmp.height = g.n_lat;
-  const tc = tmp.getContext('2d'), im = tc.createImageData(g.n_lon, g.n_lat);
+  const tc = tmp.getContext('2d'), im = tc.createImageData(g.n_lon, g.n_lat), m = st.f.basin, k = stretch();
   for (let r = 0; r < g.n_lat; r++) for (let c = 0; c < g.n_lon; c++) {
-    const v = st.f.q50[r * g.n_lon + c], o = ((g.n_lat - 1 - r) * g.n_lon + c) * 4;
-    const [rgb, a] = st.mode === 'lens' ? lensColour(st.f.basin > 0.5 ? (Math.max(v, 0) / st.f.basin - 1) * 100 : 0) : pmColour(v);
-    im.data.set([rgb[0], rgb[1], rgb[2], 80 + 175 * a], o);
+    const v = Math.max(st.f.q50[r * g.n_lon + c], 0), o = ((g.n_lat - 1 - r) * g.n_lon + c) * 4;
+    const [rgb, a] = pmColour(Math.max(0, m + k * (v - m)));
+    const thick = Math.min(1.25, Math.max(0.08, 0.6 + 2.5 * k * (m > 0.5 ? v / m - 1 : 0)));   // as the 3-D haze
+    im.data.set([rgb[0], rgb[1], rgb[2], Math.min(255, (60 + 195 * a) * thick)], o);
   }
   tc.putImageData(im, 0, 0);
   ctx.imageSmoothingEnabled = true;
   if (store.static.hillshade) { ctx.globalAlpha = 0.55; ctx.drawImage(store.static.hillshade, x0, y0, side, side); ctx.globalAlpha = 1; }
   ctx.drawImage(tmp, x0, y0, side, side);
   const env = st.env;
-  if (st.tab === 'where' && st.conf && env) {            // the same agreement colours as the 3-D overlay
+  if (st.conf && env) {
     const oc = tc.createImageData(g.n_lon, g.n_lat);
     for (let r = 0; r < g.n_lat; r++) for (let c = 0; c < g.n_lon; c++) {
       const i = r * g.n_lon + c, o = ((g.n_lat - 1 - r) * g.n_lon + c) * 4;
       const u = Math.max(0, (env.up[i] - 0.85) / 0.15), d = Math.max(0, (env.dn[i] - 0.85) / 0.15);
-      const m = Math.min(1, Math.max(0, (Math.abs(env.mag[i]) - 3) / 10));
-      oc.data.set(u >= d ? [232, 163, 90] : [143, 199, 178], o); oc.data[o + 3] = 200 * Math.max(u, d) * m;
+      const mm = Math.min(1, Math.max(0, (Math.abs(env.mag[i]) - 3) / 10));
+      oc.data.set(u >= d ? [232, 163, 90] : [143, 199, 178], o); oc.data[o + 3] = 200 * Math.max(u, d) * mm;
     }
     tc.putImageData(oc, 0, 0); ctx.drawImage(tmp, x0, y0, side, side);
   }
   cv._geo = { x0, y0, side };
-  const [lo0, la0, lo1, la1] = g.bbox;
-  ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, side, side); ctx.clip();       // keep map layers on the map
+  const P = toPx(cv._geo, ...g.bbox);
+  ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, side, side); ctx.clip();
+  const path = (pts) => pts.forEach((q, j) => { const [px, py] = P(q); if (j) ctx.lineTo(px, py); else ctx.moveTo(px, py); });
   if (st.water && hydro) {
     ctx.fillStyle = 'rgba(95,159,196,.85)';
-    for (const w of hydro.water) {
-      const ring = (w.c && w.c[0]) || []; if (ring.length < 3) continue;
-      ctx.beginPath();
-      ring.forEach(([x, y], k) => { const px = x0 + (x - lo0) / (lo1 - lo0) * side, py = y0 + (1 - (y - la0) / (la1 - la0)) * side;
-                                    if (k) ctx.lineTo(px, py); else ctx.moveTo(px, py); });
-      ctx.fill();
-    }
+    for (const wf of hydro.water) { const ring = (wf.c && wf.c[0]) || []; if (ring.length > 2) { ctx.beginPath(); path(ring); ctx.fill(); } }
     ctx.strokeStyle = 'rgba(127,182,214,.95)'; ctx.lineWidth = 1.4; ctx.beginPath();
-    for (const r of hydro.rivers) r.c.forEach(([x, y], k) => {
-      const px = x0 + (x - lo0) / (lo1 - lo0) * side, py = y0 + (1 - (y - la0) / (la1 - la0)) * side;
-      if (k) ctx.lineTo(px, py); else ctx.moveTo(px, py);
-    });
+    for (const r of hydro.rivers) path(r.c);
     ctx.stroke();
   }
-  if (st.roads && roads) {
-    for (const rk of [1, 2, 3]) {
-      ctx.strokeStyle = `rgba(242,233,220,${[0, 0.3, 0.5, 0.8][rk]})`; ctx.lineWidth = rk === 3 ? 1.6 : 0.8; ctx.beginPath();
-      for (const r of roads) if ((r.r || 1) === rk && r.t === 'ln') r.c.forEach(([x, y], k) => {
-        const px = x0 + (x - lo0) / (lo1 - lo0) * side, py = y0 + (1 - (y - la0) / (la1 - la0)) * side;
-        if (k) ctx.lineTo(px, py); else ctx.moveTo(px, py);
-      });
-      ctx.stroke();
-    }
+  if (st.roads && roads) for (const rk of [1, 2, 3]) {
+    ctx.strokeStyle = `rgba(242,233,220,${[0, 0.3, 0.5, 0.8][rk]})`; ctx.lineWidth = rk === 3 ? 1.6 : 0.8; ctx.beginPath();
+    for (const r of roads) if ((r.r || 1) === rk && r.t === 'ln') path(r.c);
+    ctx.stroke();
   }
   ctx.restore();
   ctx.font = '12px Inter, sans-serif'; ctx.fillStyle = '#f2e9dc';
-  for (const m of store.meta.landmarks.filter((x) => x.k !== 'sensor')) {
-    const x = x0 + (m.c[0] - lo0) / (lo1 - lo0) * side, y = y0 + (1 - (m.c[1] - la0) / (la1 - la0)) * side;
-    ctx.beginPath(); ctx.arc(x, y, 2.5, 0, 7); ctx.fill(); ctx.fillText(m.n, x + 6, y + 4);
+  for (const lm of store.meta.landmarks.filter((x) => x.k !== 'sensor')) {
+    const [x, y] = P(lm.c); ctx.beginPath(); ctx.arc(x, y, 2.5, 0, 7); ctx.fill(); ctx.fillText(lm.n, x + 6, y + 4);
+  }
+  if (st.pick) {
+    const [x, y] = P([st.pick.lon, st.pick.lat]);
+    ctx.strokeStyle = '#f2e9dc'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 7, 0, 7); ctx.stroke();
   }
 }
 function flatPick(e) {
@@ -523,14 +523,15 @@ function flatPick(e) {
   if (u >= 0 && u <= 1 && v >= 0 && v <= 1) pick(la0 + v * (la1 - la0), lo0 + u * (lo1 - lo0));
 }
 
-// ── links: #t=<UTC seconds>&tab=air|where|weather|data&p=lat,lon (v2's #sheet=when|where|data still opens) ─
+// ── links: #t=<UTC s>&d=air|where|weather|data (details open)&p=lat,lon&true=1&roads=0&water=0&agree=1 ─────
 let writing = false;
 function writeHash() {
   const p = new URLSearchParams();
   p.set('t', String(st.f.tsUTC));
-  if (st.tab !== 'air') p.set('tab', st.tab);
+  if (st.drawer) p.set('d', st.tab);
   if (st.pick) p.set('p', `${st.pick.lat.toFixed(4)},${st.pick.lon.toFixed(4)}`);
-  if (st.mode === 'lens') p.set('lens', '1');
+  if (st.trueScale) p.set('true', '1');
+  if (st.conf) p.set('agree', '1');
   if (!st.roads) p.set('roads', '0');
   if (!st.water) p.set('water', '0');
   const h = `#${p}`;
@@ -539,9 +540,11 @@ function writeHash() {
 }
 async function restoreFromHash() {
   const p = new URLSearchParams(location.hash.replace(/^#/, ''));
-  const tab = p.get('tab') || ({ when: 'air', where: 'where', data: 'data' })[p.get('sheet')];
-  if (['air', 'where', 'weather', 'data'].includes(tab)) setTab(tab);
-  setMode(p.get('lens') === '1' ? 'lens' : 'haze');
+  // older links: tab= (A, first pass) and sheet=when|where|data (v2) open the same panes
+  const tab = p.get('d') || p.get('tab') || ({ when: 'air', where: 'where', data: 'data' })[p.get('sheet')];
+  if (['air', 'where', 'weather', 'data'].includes(tab)) openDrawer(true, tab);
+  st.trueScale = p.get('true') === '1'; $('#true-tg').checked = st.trueScale;
+  st.conf = p.get('agree') === '1'; $('#w-conf').checked = st.conf;
   st.roads = p.get('roads') !== '0'; $('#roads-tg').checked = st.roads;
   st.water = p.get('water') !== '0'; $('#water-tg').checked = st.water;
   if (roads) loadLayers();
