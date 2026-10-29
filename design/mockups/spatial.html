@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kandy Air — where, and how sure (mock-up A4)</title>
+<link rel="stylesheet" href="tokens.css">
+<script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
+<style>
+  #scene { position: fixed; inset: 0; overflow: hidden; }
+  .labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .lbl { position: absolute; left: 0; top: 0; font: 500 11px/1 var(--font-ui); color: var(--paper-2); white-space: nowrap;
+         text-shadow: 0 1px 6px rgba(0,0,0,.85); margin: -6px 0 0 8px; }
+  .lbl::before { content: ''; position: absolute; left: -8px; top: 3px; width: 4px; height: 4px; border-radius: 50%; background: var(--paper-2); }
+  .lbl.city { font: 400 italic 16px/1 var(--font-display); color: var(--paper); }
+  .vignette { position: fixed; inset: 0; pointer-events: none;
+              background: linear-gradient(90deg, rgba(15,13,11,.78) 0%, rgba(15,13,11,0) 32%, rgba(15,13,11,0) 66%, rgba(15,13,11,.8) 100%); }
+  header { position: fixed; top: 18px; left: 24px; right: 24px; display: flex; align-items: center; gap: 16px; z-index: 6; }
+  .mark { font: 400 19px/1 var(--font-display); }
+  header nav { margin-left: auto; } header nav a { color: var(--paper-2); text-decoration: none; font-size: 13px; margin-left: 22px; }
+  /* left: what we know, ranked by certainty */
+  .know { position: fixed; left: 24px; top: 72px; width: 330px; padding: 20px; z-index: 6; }
+  .know h2 { font: 300 30px/1.08 var(--font-display); margin: 6px 0 14px; letter-spacing: -.01em; }
+  .seg { display: flex; background: rgba(242,233,220,.06); border-radius: 99px; padding: 3px; margin-bottom: 16px; }
+  .seg b { flex: 1; text-align: center; font: 500 12px/1 var(--font-ui); padding: 9px 0; border-radius: 99px; color: var(--paper-2); cursor: pointer; }
+  .seg b.on { background: var(--paper); color: var(--ink-0); }
+  .big { font: 600 42px/1 var(--font-ui); letter-spacing: -.02em; }
+  .big small { font: 400 14px var(--font-ui); color: var(--paper-3); margin-left: 4px; }
+  .ladder { margin-top: 16px; display: grid; gap: 10px; }
+  .rung { display: grid; grid-template-columns: 1fr auto; align-items: center; font-size: 13px; color: var(--paper-2); }
+  .rung b { color: var(--paper); font-weight: 500; }
+  .dots { display: flex; gap: 4px; } .dots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(242,233,220,.16); }
+  .dots i.f { background: var(--paper); }
+  .rung small { grid-column: 1 / -1; color: var(--paper-3); font-size: 11.5px; margin-top: 2px; }
+  .legend { margin-top: 18px; display: grid; gap: 8px; font-size: 12.5px; color: var(--paper-2); }
+  .legend span { display: flex; gap: 9px; align-items: center; }
+  .sw { width: 22px; height: 12px; border-radius: 3px; flex: none; }
+  .morph { margin-top: 16px; font-size: 11.5px; color: var(--paper-3); display: flex; gap: 8px; align-items: center; }
+  .morph .pips { display: flex; gap: 3px; } .morph .pips i { width: 14px; height: 3px; border-radius: 3px; background: rgba(242,233,220,.18); }
+  .morph .pips i.on { background: var(--accent); }
+  /* right: the valley in section */
+  .section { position: fixed; right: 24px; top: 72px; width: 400px; padding: 18px 20px; z-index: 6; }
+  .section h3 { font: 400 20px/1.2 var(--font-display); margin: 4px 0 4px; }
+  .section p { margin: 0 0 10px; color: var(--paper-2); font-size: 13px; }
+  #xsec { width: 100%; height: 230px; display: block; }
+  /* bottom: answers for places */
+  .places { position: fixed; left: 24px; right: 24px; bottom: 22px; z-index: 6; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .place { padding: 16px 18px; }
+  .place .nm { font: 400 italic 19px/1.1 var(--font-display); }
+  .place .verdict { margin: 8px 0 6px; font: 600 14px/1.3 var(--font-ui); }
+  .place .rng { font-size: 12px; color: var(--paper-3); }
+  .place .bar { position: relative; height: 6px; background: rgba(242,233,220,.08); border-radius: 6px; margin-top: 10px; }
+  .place .bar i { position: absolute; top: 0; height: 6px; border-radius: 6px; }
+  .place .bar u { position: absolute; left: 50%; top: -4px; width: 1px; height: 14px; background: var(--paper-3); }
+  .v-up { color: var(--accent); } .v-dn { color: var(--cool); } .v-q { color: var(--paper-2); }
+</style>
+</head>
+<body>
+<div class="mock-note" style="top:24px;left:50%;transform:translateX(-50%);right:auto">mock-up A4 · where, and how sure · 7 Dec 2022</div>
+<div id="scene"></div>
+<div class="vignette"></div>
+<header>
+  <div class="mark">Kandy Air</div>
+  <span class="badge"><i></i>Anchored year</span>
+  <nav><a href="explorer.html">Explore</a><a href="hero.html">Story</a><a href="#">Method</a></nav>
+</header>
+
+<section class="know glass">
+  <div class="eyebrow">Wed · 7 Dec 2022</div>
+  <h2 class="display">How sure are we<br>about <em>where</em>?</h2>
+  <div class="seg"><b id="bNight" class="on">Night · 03:30</b><b id="bDay">Midday · 12:30</b></div>
+  <div class="big num"><span id="avg">–</span><small>µg/m³ valley average</small></div>
+  <div class="ladder">
+    <div class="rung"><b>How much</b><div class="dots"><i class="f"></i><i class="f"></i><i class="f"></i></div>
+      <small>Level scaled to the regulatory station</small></div>
+    <div class="rung"><b>When</b><div class="dots"><i class="f"></i><i class="f"></i><i class="f"></i></div>
+      <small>Daily cycle fitted to the same station</small></div>
+    <div class="rung"><b>Where in the valley</b><div class="dots"><i class="f"></i><i></i><i></i></div>
+      <small>Physics, not measured: shown as what every plausible map agrees on</small></div>
+  </div>
+  <div class="legend">
+    <span><i class="sw" style="background:rgba(232,163,90,.75)"></i>Worse than the valley average in every plausible map</span>
+    <span><i class="sw" style="background:rgba(143,179,168,.75)"></i>Cleaner in every plausible map</span>
+    <span><i class="sw" style="border:1px dashed var(--paper-3)"></i>Can't tell — the maps disagree</span>
+  </div>
+  <p style="margin:12px 0 0;font-size:11.5px;color:var(--paper-3)">One honest possibility is a perfectly even valley
+     — no pattern at all. The colours show what the maps that do have a pattern agree on.</p>
+  <div class="morph"><div class="pips" id="pips"></div><span id="morphTxt">plausible map 1 of 8</span></div>
+</section>
+
+<aside class="section glass">
+  <div class="eyebrow">Hantana ridge → Kandy → Katugastota</div>
+  <h3 id="secTitle">Night: the air settles into the valley floor</h3>
+  <p id="secTxt"></p>
+  <svg id="xsec" viewBox="0 0 400 230" preserveAspectRatio="none"></svg>
+</aside>
+
+<section class="places" id="places"></section>
+
+<script type="module">
+  import { createValley, pmCss } from './valley.js';
+  const v = await createValley(document.getElementById('scene'),
+                               { camera: { x: 0.8, y: 8.6, z: 13.8, tx: 0.5, tz: -0.6, fov: 34 }, haze: 0.55 });
+  const pl = await fetch('assets/plausible.json').then((r) => r.json());
+  const meta = await fetch('assets/meta.json').then((r) => r.json());
+  const T = v.terrain, lats = meta.grid.lats, lons = meta.grid.lons;
+  const near = (arr, x) => arr.reduce((b, a, i) => Math.abs(a - x) < Math.abs(arr[b] - x) ? i : b, 0);
+  const cell = (lon, lat) => near(lats, lat) * 16 + near(lons, lon);
+  const night = pl.hours.reduce((b, h) => h.w > b.w ? h : b, pl.hours[0]);
+  const day = pl.hours.filter((h) => h.w === 0).find((h) => h.t.endsWith('12:30')) || pl.hours[12];
+  document.getElementById('bNight').textContent = (+night.t.slice(11, 13) >= 5 && +night.t.slice(11, 13) < 8 ? 'Dawn · ' : 'Night · ') + night.t.slice(11);
+  document.getElementById('bDay').textContent = 'Midday · ' + day.t.slice(11);
+
+  const PLACES = [
+    ['Kandy', 'city centre', 80.6337, 7.2906], ['Katugastota', 'river, north', 80.62496, 7.32208],
+    ['Peradeniya', 'west, university', 80.59307, 7.26421], ['Hantana', 'ridge, south', 80.625, 7.265],
+  ];
+  let H = night, k = 0;
+  const pips = document.getElementById('pips');
+  pl.labels.forEach(() => pips.appendChild(document.createElement('i')));
+
+  // a verdict is given only where every plausible map agrees; otherwise the honest answer is the range
+  function verdict(up, dn, lo, hi) {
+    if (Math.max(Math.abs(lo), Math.abs(hi)) < 6) return ['v-q', 'About the valley average'];
+    if (up >= 0.999) return ['v-up', 'Worse than the average in every map'];
+    if (dn >= 0.999) return ['v-dn', 'Cleaner than the average in every map'];
+    if (lo >= -1) return ['v-up', 'Likely worse (no map puts it lower)'];
+    if (hi <= 1) return ['v-dn', 'Likely cleaner (no map puts it higher)'];
+    return ['v-q', "Can't tell: the maps disagree"];
+  }
+  function renderPlaces() {
+    document.getElementById('places').innerHTML = PLACES.map(([nm, sub, lon, lat]) => {
+      const i = cell(lon, lat), lo = H.rel_lo[i], hi = H.rel_hi[i];
+      const [cls, txt] = verdict(H.up[i], H.dn[i], lo, hi);
+      const X = (p) => 50 + Math.max(-50, Math.min(50, p / 40 * 50));
+      const col = cls === 'v-up' ? 'var(--accent)' : cls === 'v-dn' ? 'var(--cool)' : 'rgba(242,233,220,.45)';
+      const s = (x) => (x > 0 ? '+' : '') + x.toFixed(0);
+      return `<div class="place glass"><div class="eyebrow">${sub}</div><div class="nm">${nm}</div>
+        <div class="verdict ${cls}">${txt}</div>
+        <div class="rng">${Math.abs(hi - lo) < 1 ? s(lo) + '%' : s(lo) + '% to ' + s(hi) + '%'} vs the valley average, across the plausible maps</div>
+        <div class="bar"><u></u><i style="left:${X(lo)}%;width:${Math.max(2, X(hi) - X(lo))}%;background:${col}"></i></div></div>`;
+    }).join('');
+  }
+
+  function renderSection() {
+    // terrain profile along the Kandy meridian (south → north), haze pooled below the boundary-layer top
+    const n = T.n, col = Math.round((80.63 - T.lon0) / (T.lon1 - T.lon0) * (n - 1));
+    const r0 = Math.round((7.245 - T.lat0) / (T.lat1 - T.lat0) * (n - 1)), r1 = Math.round((7.335 - T.lat0) / (T.lat1 - T.lat0) * (n - 1));
+    const W = 400, Hh = 230, zLo = 400, zHi = 1300;
+    const X = (r) => (r - r0) / (r1 - r0) * W, Y = (z) => Hh - 18 - (z - zLo) / (zHi - zLo) * (Hh - 34);
+    const prof = []; for (let r = r0; r <= r1; r++) prof.push([X(r), T.elev[r * n + col]]);
+    const floor = Math.min(...prof.map((p) => p[1]));
+    const top = floor + H.blh;                                   // boundary-layer top above the valley floor
+    const cIdx = near(lons, 80.63);
+    const hz = []; for (let r = r0; r <= r1; r++) {
+      const la = T.lat0 + r / (n - 1) * (T.lat1 - T.lat0), i = near(lats, la) * 16 + cIdx;
+      hz.push([X(r), H.variants[pl.production][i]]);
+    }
+    const ground = prof.map(([x, z]) => `${x},${Y(z)}`).join(' ');
+    const yTop = Y(Math.min(top, zHi));
+    const grad = hz.map(([x, q], j) => `<stop offset="${(j / (hz.length - 1) * 100).toFixed(1)}%" stop-color="${pmCss(q)}"/>`).join('');
+    document.getElementById('xsec').innerHTML = `
+      <defs><linearGradient id="hz" x1="0" x2="1" y1="0" y2="0">${grad}</linearGradient>
+        <clipPath id="air"><polygon points="0,${yTop} ${W},${yTop} ${ground.split(' ').reverse().join(' ')}"/></clipPath></defs>
+      <rect x="0" y="${yTop}" width="${W}" height="${Hh - yTop}" fill="url(#hz)" opacity="${H.w > 0.5 ? 0.85 : 0.45}" clip-path="url(#air)"/>
+      <polygon points="0,${Hh} ${ground} ${W},${Hh}" fill="#2b2a22"/>
+      <polyline points="${ground}" fill="none" stroke="rgba(242,233,220,.55)" stroke-width="1.2"/>
+      <line x1="0" x2="${W}" y1="${yTop}" y2="${yTop}" stroke="#f2e9dc" stroke-dasharray="4 4" stroke-width="1"/>
+      <text x="6" y="${yTop - 6}" fill="rgba(242,233,220,.75)" font-size="10.5" font-family="Inter">top of the mixed layer · ${H.blh} m above the floor</text>
+      <text x="4" y="${Hh - 4}" fill="rgba(242,233,220,.5)" font-size="10" font-family="Inter">Hantana</text>
+      <text x="${W / 2 - 18}" y="${Hh - 4}" fill="rgba(242,233,220,.5)" font-size="10" font-family="Inter">Kandy</text>
+      <text x="${W - 62}" y="${Hh - 4}" fill="rgba(242,233,220,.5)" font-size="10" font-family="Inter">Katugastota</text>`;
+    const trapped = H.w > 0.5;
+    document.getElementById('secTitle').textContent = trapped ? 'Before sunrise: the air settles into the valley floor'
+                                                              : 'Midday: sun-warmed air mixes the valley';
+    document.getElementById('secTxt').textContent = trapped
+      ? `The mixed layer is only ${H.blh} m deep, lower than the ridges, so what the city emits stays in the floor. High ground sits above it and is the surest place to be cleaner.`
+      : `The mixed layer is ${H.blh} m deep, above the ridges, so air mixes across the whole valley. Every plausible map agrees within a few percent of the average.`;
+  }
+
+  function show() {
+    document.getElementById('avg').textContent = (H.variants[0].reduce((s, x) => s + x, 0) / 256).toFixed(1);
+    v.setConfidence(H.up, H.dn, H.rel_lo.map((lo, i) => (lo + H.rel_hi[i]) / 2)); renderPlaces(); renderSection(); morph();
+  }
+  function morph() {
+    v.setField(H.variants[k]);
+    [...pips.children].forEach((p, j) => p.classList.toggle('on', j === k));
+    document.getElementById('morphTxt').textContent = `plausible map ${k + 1} of ${pl.labels.length} · same valley average, different "where"`;
+  }
+  setInterval(() => { k = (k + 1) % pl.labels.length; morph(); }, 1400);
+  const seg = (on, h) => { H = h; document.getElementById('bNight').classList.toggle('on', on === 'n'); document.getElementById('bDay').classList.toggle('on', on === 'd'); show(); };
+  document.getElementById('bNight').onclick = () => seg('n', night);
+  document.getElementById('bDay').onclick = () => seg('d', day);
+  if (location.hash === '#day') seg('d', day); else show();
+</script>
+</body>
+</html>

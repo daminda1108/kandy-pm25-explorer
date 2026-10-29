@@ -44,7 +44,7 @@ function groundColour(z01, shade) {
   return c.map((x) => (x / 255) * shade);
 }
 
-export async function createValley(el, { base = 'assets', camera: camOpt = {}, labels = true } = {}) {
+export async function createValley(el, { base = 'assets', camera: camOpt = {}, labels = true, haze: hazeK = 1 } = {}) {
   const terrain = await fetch(`${base}/terrain.json`).then((r) => r.json());
   const meta = await fetch(`${base}/meta.json`).then((r) => r.json());
   const n = terrain.n, zr = terrain.zmax - terrain.zmin;
@@ -113,7 +113,7 @@ export async function createValley(el, { base = 'assets', camera: camOpt = {}, l
       // HONEST RENDERING (2026-10-27): colour and opacity come ONLY from the model's value in this cell. No
       // elevation-based pooling: the model's own floor-to-ridge contrast is ~5 %, and drawing more would show a
       // pattern the evidence does not support. The edge fade is cosmetic (the block's outer border), not data.
-      hcol.set([rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, 0.5 * a * edge[i]], i * 4);
+      hcol.set([rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, 0.5 * hazeK * a * edge[i]], i * 4);
     }
     hgeo.attributes.color.needsUpdate = true;
     h2.geometry.setAttribute('color', hgeo.attributes.color);
@@ -163,5 +163,29 @@ export async function createValley(el, { base = 'assets', camera: camOpt = {}, l
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
-  return { setField };
+  // confidence overlay: a thin sheet just above the ground, amber where every plausible pattern puts the cell above
+  // the valley average, cool where every one puts it below, clear where they disagree (the honest "can't tell")
+  // drawn ABOVE the haze (it is information about the haze, not part of it), so it must not be hidden by it
+  const ogeo = geo.clone(), op = ogeo.attributes.position;
+  for (let i = 0; i < op.count; i++) op.setY(i, op.getY(i) + 0.36);
+  const ocol = new Float32Array(op.count * 4);
+  ogeo.setAttribute('color', new THREE.BufferAttribute(ocol, 4));
+  const over = new THREE.Mesh(ogeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false }));
+  over.renderOrder = 10; over.visible = false; scene.add(over);
+  // mag (optional): each cell's typical departure from the average in %. Agreement on a 2 % difference is not worth
+  // colouring, so opacity also scales with the size of the difference (none below 3 %, full from 13 %).
+  function setConfidence(up, dn, mag) {
+    if (!up) { over.visible = false; return; }
+    for (let i = 0; i < op.count; i++) {
+      const c = i % n, r = n - 1 - Math.floor(i / n), uu = c / (n - 1), vv = r / (n - 1);
+      const u = Math.max(0, (bilinear16(up, uu, vv) - 0.85) / 0.15);
+      const d = Math.max(0, (bilinear16(dn, uu, vv) - 0.85) / 0.15);
+      const m = mag ? Math.min(1, Math.max(0, (Math.abs(bilinear16(mag, uu, vv)) - 3) / 10)) : 1;
+      const rgb = u >= d ? [232, 163, 90] : [143, 199, 178];
+      ocol.set([rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, 0.7 * Math.max(u, d) * m * edge[i]], i * 4);
+    }
+    ogeo.attributes.color.needsUpdate = true; over.visible = true;
+  }
+
+  return { setField, setConfidence, terrain };
 }
