@@ -6,7 +6,7 @@
 // zero-ground-data tier (Tv,Tv05,Tv95 — Medellín), the SAME P_local reconstructs
 // that tier with the alternative anchors (identical pattern by construction).
 
-import { getJSON, getGzip } from './util.js?v=1793238063';
+import { getJSON, getGzip } from './util.js?v=1793242300';
 
 // synthetic "year" key for the forecast tier (see initForecast)
 export const STORE_FCST = 'F';
@@ -28,19 +28,23 @@ export class Store {
     this.corePix = 0;
   }
 
-  async init() {
+  // extras: the map layers (roads, emission surface, sources, 2-D terrain) the v1/v2 map drew. The A design does not
+  // draw them, so it passes { extras: false } and saves ~1.2 MB on first load; the wind library now loads on first use.
+  async init({ extras = true } = {}) {
     this.meta = await getJSON(`${this.base}/meta.json`);
     this.npx = this.meta.grid.n_lat * this.meta.grid.n_lon;
     const g = this.meta.grid;
     this.corePix = nearest(g.lats, this.city.core.lat) * g.n_lon
                  + nearest(g.lons, this.city.core.lon);
-    if (this.meta.wind) await this._loadWind();
     this.static.fields = await getJSON(`${this.base}/static/fields.json`);
-    this.static.layers = await getJSON(`${this.base}/static/layers.json`);
-    this.static.emission = await getJSON(`${this.base}/static/emission.json`);
-    // measured context layers (redesign phase 1): optional, so a city without them still loads
-    for (const k of ['sources', 'terrain']) {
-      try { this.static[k] = await getJSON(`${this.base}/static/${k}.json`); } catch { this.static[k] = null; }
+    if (extras) {
+      if (this.meta.wind) await this._loadWind();
+      this.static.layers = await getJSON(`${this.base}/static/layers.json`);
+      this.static.emission = await getJSON(`${this.base}/static/emission.json`);
+      // measured context layers (redesign phase 1): optional, so a city without them still loads
+      for (const k of ['sources', 'terrain']) {
+        try { this.static[k] = await getJSON(`${this.base}/static/${k}.json`); } catch { this.static[k] = null; }
+      }
     }
     this.static.hillshade = await this._loadImage(`${this.base}/static/hillshade.png`);
     return this;
@@ -191,6 +195,7 @@ export class Store {
 
   // Reconstruct the 64x64 terrain wind field via the shipped blend (parity-verified).
   async windField(year, gi) {
+    if (!this.wind && this.meta.wind) await this._loadWind();
     if (!this.wind) return null;
     const s = await this.getScalars(year);
     if (s.i0[gi] == null) return null;      // level-only hour: no wind to blend
@@ -253,11 +258,11 @@ export class Store {
     if (!byH.size) return null;
 
     // keep only hours the historical record does not already cover
-    let lastHist = -Infinity;
-    for (const y of this.meta.years) {
-      const s = await this.getScalars(y);
-      lastHist = Math.max(lastHist, s.hours_utc[s.hours_utc.length - 1]);
-    }
+    // the newest hour of the record sits in the last year (years are ascending); loading only that year keeps the
+    // forecast from pulling every year's hourly file on start (phase F: ~9 MB of the 13 MB first load)
+    const yLast = this.meta.years[this.meta.years.length - 1];
+    const sLast = await this.getScalars(yLast);
+    const lastHist = sLast.hours_utc[sLast.hours_utc.length - 1];
     const hours = [...byH.keys()].filter((h) => h > lastHist).sort((a, b) => a - b);
     if (!hours.length) return null;
 

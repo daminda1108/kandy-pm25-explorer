@@ -1,501 +1,477 @@
-// app.js — Kandy Air, redesign v2 "the valley breathes" (plan kandy_pm25/docs/webapp_redesign_v2_plan_2026-10-27.md).
-// One scene, three questions: what is the air like now (3-D valley + one sentence), why does it change through the
-// day (the day strip), how much of it is ours (the split bar). Everything else lives in the sheet. The engine
-// (store.js, field.js) is untouched; every number shown comes from store.field() exactly as before.
-import { $, el, fmt, clamp, compass, getJSON } from './util.js?v=1793238063';
-import { activeCity } from './cities.js?v=1793238063';
-import { Store, STORE_FCST } from './store.js?v=1793238063';
-import { colourMode, paintField } from './field.js?v=1793238063';
-import { WindLayer, windWords } from './wind.js?v=1793238063';
-import { Timeline } from './timeline.js?v=1793238063';
-import { Overlay } from './overlay.js?v=1793238063';
-import { MapView } from './mapview.js?v=1793238063';
-import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793238063';
-import { ValleyScene, webglOK, pmCss } from './scene.js?v=1793238063';
-import { DayStrip } from './daystrip.js?v=1793238063';
-import { zoneGrid, zoneStats, relWords, townAnswer } from './zones.js?v=1793238063';
+// app.js — Kandy Air, redesign A "The Valley" (2026-10-29; approved phase-0 mock-ups in design/mockups/, plan
+// kandy_pm25/docs/webapp_A_build_plan_2026-10-29.md). The valley full-bleed with this hour's haze; the answer on one
+// card; detail in a drawer (Air mass, Where, Weather, Data); time along the bottom (this day hour by hour, every day
+// since 2019). The engine (store.js) is unchanged: every number comes from store.field() exactly as the QA gate checks.
+// Replaces v2 "the valley breathes" (git tag v2-valley-breathes).
+import { $, $$, getJSON, compass } from './util.js?v=1793242300';
+import { activeCity } from './cities.js?v=1793242300';
+import { Store, STORE_FCST } from './store.js?v=1793242300';
+import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793242300';
+import { Valley, webglOK, pmCss, pmColour } from './valley.js?v=1793242300';
+import { envelope, verdict, cellOf, townAnswer } from './where.js?v=1793242300';
 
 const CITY = activeCity();
 const LT = CITY.tzOffsetH * 3600;
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
-                'November', 'December'];
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const MAP = 840;
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// Sri Lanka's monsoon calendar (Department of Meteorology)
+const SEASON = (m) => (m === 12 || m <= 2 ? 'North-east monsoon' : m <= 4 ? 'First inter-monsoon'
+  : m <= 9 ? 'South-west monsoon' : 'Second inter-monsoon');
+const PLACES = [['Kandy', 'city centre'], ['Katugastota', 'river, north'], ['Peradeniya', 'west, university'],
+                ['Halloluwa', 'valley floor, north-west']];
+const SCALE_MAX = 90;
 
 const store = new Store(CITY);
-const state = { year: null, gi: 0, cur: null, pin: null, uq: false, pattern: true, flat: false, cmp: 'wkd',
-                cmpTouched: false, playing: false };
-let scene = null, strip = null, timeline = null, act = null, terrain = null, ZG = null, spread = null;
-let flat = null;          // { mapview, overlay, wind, hill }
+const st = { year: null, gi: 0, f: null, tab: 'air', conf: true, pick: null, playing: false, timer: null, env: null };
+let valley = null, parts = null, daily = null, spread = null, flatCv = null;
 
-const lt = (ts) => new Date((ts + LT) * 1000);
-const hhmm = (ts) => { const d = lt(ts); return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
-const dayKey = (ts) => lt(ts).toISOString().slice(0, 10);
+const ltDate = (ts) => new Date((ts + LT) * 1000);
+const hhmm = (ts) => { const d = ltDate(ts); return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
+const dayStart = (ts) => Math.floor((ts + LT) / 86400) * 86400 - LT;      // UTC seconds of local midnight
+const isoDay = (ts) => ltDate(ts).toISOString().slice(0, 10);
+const epTs = (e) => Date.parse(e.ts.replace(' ', 'T') + ':00Z') / 1000 - LT + 1800;   // episode stamps are local, hourly at :30
+const tierOf = (y) => (y === STORE_FCST ? 'forecast' : ((store.meta.tiers || {}).extension || []).includes(y) ? 'extension' : 'anchored');
+const f1 = (x) => (Number.isFinite(x) ? x.toFixed(1) : '–');
+const f0 = (x) => (Number.isFinite(x) ? Math.round(x).toString() : '–');
 
-// ── boot ────────────────────────────────────────────────────────────────
+// ── boot ────────────────────────────────────────────────────────────────────────────────────────────────────
 async function boot() {
-  await store.init();
-  [terrain, act, spread] = await Promise.all([getJSON(`${store.base}/static/terrain3d.json`).catch(() => null),
-                                      getJSON(`${store.base}/static/activity.json`).catch(() => null),
-                                      getJSON(`${store.base}/static/spatial_spread.json`).catch(() => null)]);
-  strip = new DayStrip($('#strip'), (k) => goDayIndex(k));
-  timeline = new Timeline($('#timeline'), store.meta.years, (y, gi) => { seek(y, gi); });
-
-  const anchored = (store.meta.tiers || {}).anchored || [];
-  const y0 = anchored.length ? anchored[anchored.length - 1] : store.meta.years[store.meta.years.length - 1];
-  timeline.addYear(y0, await store.getScalars(y0));
-  (async () => { for (const y of store.meta.years) if (y !== y0) {
-    try { timeline.addYear(y, await store.getScalars(y)); timeline.draw(); } catch (e) { console.warn(e); } } })();
-  try { await store.initForecast(); } catch (e) { console.warn('forecast tier off:', e); }
-  await buildAvailability();
-  refreshPickers(false);
-
+  await store.init({ extras: false });
+  let terrain;
+  [terrain, parts, daily, spread] = await Promise.all(['terrain3d', 'pattern_parts', 'daily', 'spatial_spread']
+    .map((k) => getJSON(`${store.base}/static/${k}.json`).catch(() => null)));
   if (terrain && webglOK()) {
-    scene = new ValleyScene($('#scene'), { terrain, meta: store.meta, roads: store.static.layers.roads || [],
-                                           camera: innerWidth < 760 ? 'phone' : 'explore' });
-    wireScenePick();
+    valley = new Valley($('#scene'), { terrain, meta: store.meta, grid: store.meta.grid,
+                                       camera: innerWidth < 760 ? 'phone' : 'wide', onPick: (la, lo) => pick(la, lo) });
   } else {
-    state.flat = true; $('#flat-toggle').checked = true; $('#flat-toggle').disabled = true;
+    document.body.classList.add('no3d'); $('#scene').style.display = 'none';
+    flatCv = $('#flat'); flatCv.addEventListener('click', flatPick);
   }
-  layoutForWidth();
-  wire();
   fillStatic();
-
-  const ok = await restoreFromHash();
-  if (!ok) {
+  wire();
+  drawYear();
+  addEventListener('resize', () => { drawYear(); if (st.f) { drawDay(); if (flatCv) drawFlat(); } });
+  if (!(await restoreFromHash())) {
     const ep = store.meta.episodes.find((e) => e.id === CITY.defaultEpisode) || store.meta.episodes[0];
-    await seekLocal(ep ? ep.ts : CITY.defaultTs);
+    await seekTs(epTs(ep));
   }
-  window.addEventListener('hashchange', () => { if (!writing) restoreFromHash(); });
-  const l = $('#loading'); l.classList.add('done'); setTimeout(() => l.remove(), 450);
+  addEventListener('hashchange', () => { if (!writing) restoreFromHash(); });
+  const l = $('#loading'); l.classList.add('done'); setTimeout(() => l.remove(), 500);
 }
 
-// phone: the headline and key move below the scene, onto paper
-function layoutForWidth() {
-  const narrow = innerWidth < 760, hl = $('.headline'), key = $('.key'), stage = $('.stage');
-  if (narrow && hl.parentElement === stage) { stage.after(hl); hl.after(key); }
-  if (!narrow && hl.parentElement !== stage) { stage.append(hl); stage.append(key); }
-}
-
-// ── seeking ────────────────────────────────────────────────────────────
-async function seek(year, gi) {
-  const s = await store.getScalars(year);
-  state.year = year; state.gi = clamp(gi, 0, s.hours_utc.length - 1);
-  const f = await store.field(year, state.gi);
-  state.cur = f;
-  const wf = await store.windField(year, state.gi);
-  const day = await dayOf(year, state.gi);
-  state.day = day;
-  const sunday = lt(f.tsUTC).getUTCDay() === 0;
-  if (!state.cmpTouched) setCmp(sunday ? 'sun' : 'wkd', false);
-  render(f, wf, day);
-  timeline.setCursor(year, state.gi);
-  syncPickers(f.tsUTC);
-  writeHash(f);
-}
-
-async function seekLocal(str) {        // "YYYY-MM-DD HH:MM" Sri Lanka time
-  const [d, t] = str.split(' ');
-  return seekTs(Date.parse(`${d}T${t}:00Z`) / 1000 - LT);
+// ── seeking ─────────────────────────────────────────────────────────────────────────────────────────────────
+function nearestIdx(hours, ts) {
+  let lo = 0, hi = hours.length - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (hours[m] <= ts) lo = m; else hi = m; }
+  return Math.abs(hours[hi] - ts) < Math.abs(hours[lo] - ts) ? hi : lo;
 }
 async function seekTs(ts) {
-  let best = null;
-  for (const y of yearKeys()) {
-    const s = await store.getScalars(y), H = s.hours_utc;
-    if (!H.length || ts < H[0] - 86400 || ts > H[H.length - 1] + 86400) continue;
-    for (let i = 0; i < H.length; i++) { const dd = Math.abs(H[i] - ts); if (!best || dd < best.d) best = { d: dd, y, i }; }
+  const fc = store.forecast;
+  if (fc && ts > fc.hours[0] - 1800) return seek(STORE_FCST, nearestIdx(fc.hours, ts));
+  const ys = store.meta.years;
+  const y = Math.min(ys[ys.length - 1], Math.max(ys[0], ltDate(ts).getUTCFullYear()));
+  const s = await store.getScalars(y);
+  return seek(y, nearestIdx(s.hours_utc, ts));
+}
+let seekSeq = 0;
+async function seek(year, gi) {
+  const my = ++seekSeq;
+  const f = await store.field(year, gi);
+  if (my !== seekSeq) return true;
+  st.year = year; st.gi = gi; st.f = f;
+  render();
+  return true;
+}
+const scalars = () => store.scalars.get(st.year);
+
+// ── render ──────────────────────────────────────────────────────────────────────────────────────────────────
+function render() {
+  const f = st.f, s = scalars(), tier = tierOf(st.year);
+  st.env = parts ? envelope(parts, f, store.meta.eps_floor || 0) : null;
+  if (valley) {
+    valley.setField(f.q50);
+    const showConf = st.tab === 'where' && st.conf && st.env;
+    valley.setConfidence(showConf ? st.env : null);
+    valley.setHazeStrength(showConf ? 0.55 : 1);
+  } else drawFlat();
+  renderCard(f, tier);
+  renderTier(tier);
+  drawDay(); markYear();
+  renderAir(f, s); renderWhere(f); renderWeather(f);
+  $('#date').value = isoDay(f.tsUTC);
+  writeHash();
+}
+
+function episodeNear(ts) { return store.meta.episodes.find((e) => Math.abs(epTs(e) - ts) < 2.5 * 86400); }
+
+function renderCard(f, tier) {
+  const d = ltDate(f.tsUTC), m = d.getUTCMonth() + 1;
+  $('#c-date').textContent = `${DOW[d.getUTCDay()]} · ${d.getUTCDate()} ${MON[m - 1]} ${d.getUTCFullYear()} · ${SEASON(m)}`;
+  $('#c-time').textContent = hhmm(f.tsUTC);
+  $('#c-val').textContent = f1(f.basin);
+  $('#c-core').textContent = f0(f.core);
+  $('#c-rng').textContent = `${f0(f.basin05)}–${f0(f.basin95)}`;
+  const X = (x) => Math.min(100, Math.max(0, x / SCALE_MAX * 100));
+  $('#c-band').style.left = X(f.basin05) + '%'; $('#c-band').style.width = Math.max(1, X(f.basin95) - X(f.basin05)) + '%';
+  $('#c-med').style.left = `calc(${X(f.basin)}% - 1px)`;
+  const local = Math.max(f.basin - f.B, 0), pb = Math.min(100, f.B / Math.max(f.B + local, 1e-6) * 100);
+  $('#c-sb').style.width = pb + '%'; $('#c-sl').style.width = (100 - pb) + '%';
+  $('#c-pb').textContent = Math.round(pb) + '%'; $('#c-pl').textContent = Math.round(100 - pb) + '%';
+  $('#c-say').textContent = sentence(f);
+  const b = [], env = st.env;
+  if (env) b.push(env.w > 0.5 ? 'Shallow mixing · air held in the valley'
+    : env.w > 0 ? 'Partly mixed' : `Mixed to ${f0(f.blh)} m`);
+  const ep = episodeNear(f.tsUTC);
+  if (ep) b.push(`Documented: ${ep.title}`);
+  if (tier === 'forecast') b.push(store.kindAt(st.year, st.gi) === 'recent' ? 'Recent analysis' : 'Forecast (demonstration)');
+  $('#c-badges').innerHTML = b.map((t) => `<span class="badge">${t}</span>`).join('');
+}
+
+// one plain sentence. WHO guidelines are averages over a day or a year, so an hour is compared loosely ("at the level
+// of"), never as a breach
+function sentence(f) {
+  const v = f.basin;
+  const lvl = v < 5 ? 'Clean air, below the WHO annual guideline'
+    : v < 15 ? 'Fairly clean: under the level of the WHO 24-hour guideline'
+    : v < 35 ? 'Above the level of the WHO 24-hour guideline'
+    : v < 75 ? 'Polluted: more than twice the level of the WHO 24-hour guideline' : 'Heavily polluted';
+  const local = Math.max(v - f.B, 0);
+  const why = v < 1 ? '.' : local > f.B ? ', most of it made in the valley.'
+    : local > 0.25 * f.B ? ', a regional load plus the valley\'s own.' : ', almost all of it arriving from outside.';
+  return lvl + why;
+}
+
+function renderTier(tier) {
+  const t = $('#tier'), lab = t.querySelector('span');
+  t.className = 'badge' + (tier === 'extension' ? ' ext' : tier === 'forecast' ? ' fc' : '');
+  lab.textContent = tier === 'anchored' ? 'Anchored year · level scaled to the CEA station'
+    : tier === 'extension' ? 'Extension year · level uncertain (reads ~40 % low)' : 'Forecast · demonstration';
+}
+
+// ── time bar ────────────────────────────────────────────────────────────────────────────────────────────────
+function dayIdx() {
+  const s = scalars(), d0 = dayStart(st.f.tsUTC), out = [];
+  let i = st.gi; while (i > 0 && s.hours_utc[i - 1] >= d0) i--;
+  for (; i < s.hours_utc.length && s.hours_utc[i] < d0 + 86400; i++) out.push(i);
+  return out;
+}
+function drawDay() {
+  const s = scalars(), idx = dayIdx(), svg = $('#day-svg'), top = 14;
+  if (!idx.length) return;
+  // drawn in the element's own pixels so the labels are not stretched
+  const W = Math.max(200, svg.clientWidth), H = Math.max(40, svg.clientHeight);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const vals = idx.map((i) => ({ t: s.hours_utc[i], v: s.basin[i], b: s.B[i],
+                                  lo: Math.max(s.T05[i], s.B_lo ? s.B_lo[i] : 0), hi: s.T95[i] }));
+  const ymax = Math.max(40, ...vals.map((x) => x.hi)) * 1.05;
+  const d0 = dayStart(st.f.tsUTC);
+  const xs = (t) => (t - d0) / 86400 * W, ys = (p) => H - 2 - Math.max(0, p) / ymax * (H - top - 4);
+  const line = (k) => vals.map((x) => `${xs(x.t)},${ys(x[k])}`).join(' ');
+  const band = vals.map((x) => `${xs(x.t)},${ys(x.hi)}`).join(' ') + ' '
+    + vals.slice().reverse().map((x) => `${xs(x.t)},${ys(x.lo)}`).join(' ');
+  const now = xs(st.f.tsUTC), who = ys(15);
+  const ticks = [0, 6, 12, 18].map((h) => `<text x="${h / 24 * W + 4}" y="10" fill="rgba(242,233,220,.45)" font-size="10" font-family="Inter">${String(h).padStart(2, '0')}:00</text>`).join('');
+  svg.innerHTML = `
+    <polygon points="${band}" fill="rgba(242,233,220,.10)"/>
+    <line x1="0" x2="${W}" y1="${who}" y2="${who}" stroke="rgba(143,199,178,.5)" stroke-dasharray="2 6" vector-effect="non-scaling-stroke"/>
+    ${W < 520 ? '' : `<text x="${W * 0.36}" y="${who - 4}" fill="rgba(143,199,178,.9)" font-size="10" font-family="Inter" paint-order="stroke" stroke="#17140f" stroke-width="3">WHO 24-h guideline · 15</text>`}
+    <polyline points="${line('b')}" fill="none" stroke="#b9a88f" stroke-width="1.5" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>
+    <polyline points="${line('v')}" fill="none" stroke="#e8a35a" stroke-width="2.4" vector-effect="non-scaling-stroke"/>
+    <line x1="${now}" x2="${now}" y1="0" y2="${H}" stroke="#f2e9dc" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+    ${ticks}`;
+}
+function drawYear() {
+  if (!daily) return;
+  const cv = $('#year-cv'), w = cv.clientWidth, h = 22, dpr = Math.min(devicePixelRatio, 2);
+  if (!w) return;
+  cv.width = w * dpr; cv.height = h * dpr;
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const D = daily.days, n = D.length, bw = w / n;
+  D.forEach((d, i) => { ctx.globalAlpha = d[3] === 'extension' ? 0.45 : 1; ctx.fillStyle = pmCss(d[1]); ctx.fillRect(i * bw, 2, Math.ceil(bw) + 0.5, 18); });
+  ctx.globalAlpha = 1;
+  const lab = $('#year-lab'); lab.innerHTML = '';
+  let last = '', firstExt = -1;
+  D.forEach((d, i) => {
+    const y = isoDay(d[0] + 3600).slice(0, 4);
+    if (d[3] === 'extension') { if (firstExt < 0) firstExt = i; return; }
+    if (y !== last) { const s = document.createElement('span'); s.className = 'yl'; s.style.left = (i / n * 100) + '%'; s.textContent = y; lab.append(s); last = y; }
+  });
+  if (firstExt >= 0) {
+    const e = document.createElement('span'); e.className = 'ext'; e.style.left = (firstExt / n * 100) + '%';
+    e.textContent = innerWidth < 760 ? '2024– · EXTENSION' : '2024 – 2026 · EXTENSION, LEVEL UNCERTAIN'; lab.append(e);
   }
-  if (best && best.d <= 86400) { await seek(best.y, best.i); return true; }
-  return false;
+  const m = document.createElement('div'); m.id = 'year-mark';
+  Object.assign(m.style, { position: 'absolute', top: '0', width: '2px', height: '24px', background: 'var(--paper)' });
+  lab.append(m); markYear();
+}
+function markYear() {
+  const m = $('#year-mark'); if (!m || !daily || !st.f) return;
+  const D = daily.days, d0 = dayStart(st.f.tsUTC);
+  let i = D.findIndex((d) => d[0] >= d0 - 3600);
+  if (i < 0) i = D.length - 1;
+  m.style.left = `calc(${i / D.length * 100}% - 1px)`;
 }
 
-// the hours of the chosen hour's local day (within one year file), each with its valley average and range
-const dayCache = new Map();
-async function dayOf(year, gi) {
-  const s = await store.getScalars(year), key = `${year}:${dayKey(s.hours_utc[gi])}`;
-  if (dayCache.has(key)) return { ...dayCache.get(key), cur: dayCache.get(key).gis.indexOf(gi) };
-  const want = dayKey(s.hours_utc[gi]), gis = [];
-  for (let i = Math.max(0, gi - 30); i < Math.min(s.hours_utc.length, gi + 30); i++)
-    if (dayKey(s.hours_utc[i]) === want) gis.push(i);
-  const hours = [];
-  for (const i of gis) {
-    const f = await store.field(year, i);
-    const h = lt(s.hours_utc[i]).getUTCHours();
-    hours.push({ label: hhmm(s.hours_utc[i]), pm: f.basin, lo: f.basin05, hi: f.basin95, blh: f.blh,
-                 traffic: trafficAt(h, lt(s.hours_utc[i]).getUTCDay() === 0), B: f.B });
-  }
-  const rec = { year, gis, hours, hour0: lt(s.hours_utc[gis[0]]).getUTCHours(), key: want };
-  dayCache.set(key, rec);
-  if (dayCache.size > 40) dayCache.delete(dayCache.keys().next().value);
-  return { ...rec, cur: gis.indexOf(gi) };
-}
-function trafficAt(h, sunday) {
-  if (!act) return 0;
-  return act.traffic[h] * (sunday ? act.sunday_k[h] : 1);
-}
-function goDayIndex(k) { if (state.day) seek(state.day.year, state.day.gis[k]); }
-async function shiftDay(dir) { if (state.cur) await seekTs(state.cur.tsUTC + dir * 86400); }
-
-// ── render ─────────────────────────────────────────────────────────────
-function render(f, wf, day) {
-  const d = lt(f.tsUTC), h = d.getUTCHours(), hf = h + d.getUTCMinutes() / 60;
-  const sunday = d.getUTCDay() === 0;
-  const q = drawnField(f);
-  if (scene) scene.setHour({ q, grid: store.meta.grid, avg: state.uq ? f.basin95 : f.basin, blh: f.blh, wind: wf,
-                             rain: f.rain, hour: hf, traffic: trafficAt(h, sunday) });
-  if (state.flat) drawFlat(f, wf, q);
-
-  // headline
-  const dateTxt = `${DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-  $('#hl-when').textContent = `${dateTxt} · ${hhmm(f.tsUTC)}`;
-  const isF = store.isForecast(f.year);
-  const v = state.uq ? f.basin95 : f.basin;
-  $('#hl-num').textContent = isF ? `${Math.round(f.basin05)}–${Math.round(f.basin95)}` : Math.round(v);
-  $('#hl-range').innerHTML = `<span class="band" style="background:${pmCss(v)};color:${v < 30 ? '#1c1d1f' : '#fff'}">${whoWords(f.basin)}</span>`
-    + (isF ? `90 % range, most likely near ${Math.round(f.basin)}` : (state.uq ? `top of the 90 % range (middle ${Math.round(f.basin)})`
-      : `valley average · likely between ${Math.round(f.basin05)} and ${Math.round(f.basin95)}`));
-  $('#hl-sentence').textContent = sentence(f, h, sunday);
-  const tier = tierNote(f);
-  $('#hl-tier').hidden = !tier; $('#hl-tier').textContent = tier || '';
-
-  // split: arrived from outside vs made in the valley (the model's background vs the rest)
-  const out = clamp(f.B / Math.max(f.basin, 0.1), 0, 1);
-  $('#split-out').style.width = `${out * 100}%`; $('#split-in').style.width = `${(1 - out) * 100}%`;
-  $('#split-out-v').textContent = `${Math.round(out * 100)} %`;
-  $('#split-in-v').textContent = `${Math.round((1 - out) * 100)} %`;
-
-  // day strip
-  $('#day-title').textContent = dateTxt;
-  strip.set({ hours: day.hours, cur: Math.max(0, day.cur), hour0: day.hour0,
-              station: act ? act.station[state.cmp] : null });
-  renderWhere(f);
-  renderTrust(f);
+// ── drawer panes ────────────────────────────────────────────────────────────────────────────────────────────
+function renderAir(f, s) {
+  const local = Math.max(f.basin - f.B, 0);
+  $('#air-b').textContent = `${f1(f.B)} µg/m³`; $('#air-l').textContent = `${f1(local)} µg/m³`;
+  const m = ltDate(f.tsUTC).getUTCMonth() + 1;
+  const regional = f.B >= 20 ? 'a heavy regional load' : f.B >= 10 ? 'a moderate regional load' : 'fairly clean regional air';
+  $('#air-txt').innerHTML = `${SEASON(m)} air brought ${regional} (${f1(f.B)} µg/m³) into the valley. `
+    + (local < 0.5 ? 'Right now the valley adds almost nothing on top: the air is well mixed and its own emissions are carried away.'
+      : `The valley adds <b>${f1(local)}</b> of its own on top.`);
+  const idx = dayIdx(), W = 300, H = 116, d0 = dayStart(f.tsUTC);
+  const ymax = Math.max(30, ...idx.map((i) => Math.max(s.basin[i], s.B[i]))) * 1.08;
+  const sx = (t) => (t - d0) / 86400 * W, sy = (p) => H - Math.max(0, p) / ymax * (H - 6);
+  const bTop = idx.map((i) => `${sx(s.hours_utc[i])},${sy(s.B[i])}`).join(' ');
+  const tTop = idx.map((i) => `${sx(s.hours_utc[i])},${sy(Math.max(s.basin[i], s.B[i]))}`).join(' ');
+  const bRev = idx.slice().reverse().map((i) => `${sx(s.hours_utc[i])},${sy(s.B[i])}`).join(' ');
+  const x0 = sx(s.hours_utc[idx[0]]), x1 = sx(s.hours_utc[idx[idx.length - 1]]), xn = sx(f.tsUTC);
+  $('#air-stack').innerHTML = `<polygon points="${x0},${H} ${bTop} ${x1},${H}" fill="#b9a88f" opacity=".75"/>
+    <polygon points="${tTop} ${bRev}" fill="#e8a35a" opacity=".85"/>
+    <line x1="${xn}" x2="${xn}" y1="0" y2="${H}" stroke="#f2e9dc" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+  const ep = episodeNear(f.tsUTC);
+  $('#air-episode').innerHTML = ep ? `<h4>${ep.title}</h4><p>${ep.note}</p><p class="fine">Source: ${ep.source}</p>` : '';
 }
 
-function drawnField(f) {
-  let q = state.uq ? f.q95 : f.q50;
-  if (!state.pattern) q = new Float32Array(q.length).fill(state.uq ? f.basin95 : f.basin);
-  return q;
+function placeCard(nm, sub, lat, lon) {
+  const env = st.env, i = cellOf(store.meta.grid, lat, lon), [cls, txt] = verdict(env, i);
+  const lo = env.lo[i], hi = env.hi[i], s = (x) => (x > 0 ? '+' : '') + x.toFixed(0);
+  const X = (p) => 50 + Math.max(-50, Math.min(50, p / 40 * 50));
+  const col = cls === 'up' ? 'var(--accent)' : cls === 'dn' ? 'var(--cool)' : 'rgba(242,233,220,.45)';
+  return `<div class="place"><div class="nm">${nm}<small>${sub}</small></div>
+    <div class="vd v-${cls}">${txt}</div>
+    <div class="rg">${Math.abs(hi - lo) < 1 ? s(lo) + ' %' : s(lo) + ' % to ' + s(hi) + ' %'} against the valley average
+      across the plausible maps (or 0 % in an even valley)</div>
+    <div class="bar"><u></u><i style="left:${X(lo)}%;width:${Math.max(2, X(hi) - X(lo))}%;background:${col}"></i></div></div>`;
 }
-
-function whoWords(v) {
-  if (v < 15) return 'within the WHO day guideline';
-  const r = v / 15;
-  return `${r < 3 ? r.toFixed(1) : Math.round(r)}× the WHO day guideline`;
-}
-
-// one sentence, from the hour's own numbers
-function sentence(f, h, sunday) {
-  const part = h <= 4 ? 'Night' : h === 5 ? 'Before dawn' : h <= 9 ? 'Morning rush hour' : h <= 15 ? 'Midday'
-             : h === 16 ? 'Late afternoon' : h <= 20 ? 'Evening rush hour' : 'Late evening';
-  const out = [];
-  let lead = part + (sunday ? ' on a Sunday' : '');
-  if (Number.isFinite(f.blh)) {
-    const m = Math.round(f.blh / 10) * 10;
-    lead += m < 300 ? `, under a shallow mixing layer about ${m} m deep` : m < 700 ? `, with the air mixing to about ${m} m`
-          : `, with the air mixing up to about ${m} m`;
-  }
-  out.push(lead + '.');
-  if (Number.isFinite(f.wspd)) out.push(`${cap(windWords(f.wspd))}${f.wspd >= 0.3 ? ` from the ${compassWords(f.wdir)}` : ''}.`);
-  if (Number.isFinite(f.rain) && f.rain >= 0.5) out.push(`Raining, about ${f.rain.toFixed(1)} mm in the hour.`);
-  if (h <= 4) out.push('Traffic has stopped; at the station these are usually the cleanest hours.');
-  else if (sunday && h >= 6 && h <= 9) out.push('On Sunday mornings the station measures about a fifth less than on weekdays.');
-  else if (h >= 6 && h <= 9 && f.blh < 400) out.push('The morning’s traffic and cooking smoke have little room to spread.');
-  else if (h >= 11 && h <= 15 && f.blh > 700) out.push('A deep layer spreads what the city emits.');
-  return out.join(' ');
-}
-const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-const WORDS = { N: 'north', NNE: 'north-north-east', NE: 'north-east', ENE: 'east-north-east', E: 'east', ESE: 'east-south-east',
-  SE: 'south-east', SSE: 'south-south-east', S: 'south', SSW: 'south-south-west', SW: 'south-west', WSW: 'west-south-west',
-  W: 'west', WNW: 'west-north-west', NW: 'north-west', NNW: 'north-north-west' };
-const compassWords = (deg) => WORDS[compass(deg)] || compass(deg);
-
-function tierNote(f) {
-  if (store.isForecast(f.year)) {
-    const kind = store.kindAt(f.year, f.gi);
-    return (kind === 'recent' ? 'Recent hours, modelled from a near-real-time global analysis.'
-          : kind === 'level_only' ? 'Level only: no weather is available for these hours.' : 'A forecast.')
-      + ' A demonstration: not yet checked against the Kandy station, and the range is deliberately wide.';
-  }
-  const ext = (store.meta.tiers || {}).extension || [];
-  if (ext.includes(f.year)) return 'After 2023 the level is modelled from weather; against the station it reads about 40 % low. Read this hour as a guide.';
-  return '';
-}
-
-// ── sheet: where, trust ────────────────────────────────────────────────
 function renderWhere(f) {
-  if (!store.static.fields) return;
-  if (!ZG) ZG = zoneGrid(store.static.fields.elev);
-  const zs = zoneStats(f.q50, ZG, f.basin);
-  $('#zones').innerHTML = zs.map((z) => `<div class="zn-row"><span>${z.name} <small>${z.range}</small></span>`
-    + `<span>${relWords(z.pct)}</span></div>`).join('');
+  const env = st.env;
+  if (!env) { $('#w-places').innerHTML = '<p class="fine">The pattern data did not load.</p>'; return; }
+  const H = parts.H_ridge_m;
+  // H is the model's confinement height (M = 1 + k.w.c, w = (H - BLH)/H), not the ridge height (relief ~850 m)
+  $('#w-mix').innerHTML = env.w > 0.5
+    ? `The air is mixed only to about <b>${f0(env.blh)} m</b>, well under the ${f0(H)} m below which the model treats the valley as trapped: this is when places can differ most.`
+    : env.w > 0 ? `The air is mixed to about <b>${f0(env.blh)} m</b>, a little under the ${f0(H)} m below which the model treats the valley as trapped.`
+    : `The air is mixed to about <b>${f0(env.blh)} m</b>, above the ${f0(H)} m below which the model treats the valley as trapped: the plausible maps differ only by the satellite surface, and an even valley is as likely.`;
+  $('#w-members').textContent = `${env.members} plausible maps, each with this hour's valley average; a perfectly even valley is also possible.`
+    + (tierOf(st.year) !== 'anchored' ? ' In this year the delivered map uses the 2019–2023 typical pattern; the plausible maps are built from this hour\'s mixing.' : '');
+  const lm = (n) => store.meta.landmarks.find((x) => x.n === n);
+  let html = '';
+  if (st.pick) html += placeCard('Your spot', `${st.pick.lat.toFixed(3)}° N, ${st.pick.lon.toFixed(3)}° E`, st.pick.lat, st.pick.lon);
+  html += PLACES.map(([n, sub]) => { const m = lm(n); return m ? placeCard(n, sub, m.c[1], m.c[0]) : ''; }).join('');
+  $('#w-places').innerHTML = html;
   renderTowns(f);
-  if (state.pin) showPoint(state.pin.lat, state.pin.lon, false);
 }
-
-// two towns a few km apart: the typical size of the difference (learned in valleys with monitors), never a direction
 function renderTowns(f) {
-  const towns = (store.meta.landmarks || []).filter((t) => t.k === 'city' || t.k === 'town');
-  const sa = $('#town-a'), sb = $('#town-b');
-  if (!sa || !towns.length) return;
-  if (!sa.options.length) {
-    for (const s of [sa, sb]) s.innerHTML = towns.map((t, i) => `<option value="${i}">${t.n}</option>`).join('');
-    sa.value = String(Math.max(0, towns.findIndex((t) => t.n === 'Kandy')));
-    sb.value = String(Math.max(0, towns.findIndex((t) => t.n === 'Peradeniya')));
-    for (const s of [sa, sb]) s.addEventListener('change', () => state.cur && renderTowns(state.cur));
-  }
-  const a = towns[+sa.value], b = towns[+sb.value];
-  $('#towns').innerHTML = a === b ? '<p>Choose two different towns.</p>'
-    : townAnswer(a, b, f.q50, store.meta.grid, f.basin, spread);
+  const lm = store.meta.landmarks.filter((m) => m.k !== 'sensor');
+  const a = lm.find((m) => m.n === $('#town-a').value), b = lm.find((m) => m.n === $('#town-b').value);
+  if (!a || !b) return;
+  $('#w-towns').innerHTML = a === b ? '<p class="fine">Choose two different towns.</p>' : townAnswer(a, b, f.basin, spread);
 }
 
-function renderTrust(f) {
-  const ext = ((store.meta.tiers || {}).extension || []).includes(f.year), fc = store.isForecast(f.year);
-  const rows = [
-    ['How polluted the year is', fc ? 'Forecast: not checked' : ext ? 'Modelled from weather; reads about 40 % low at the station'
-      : 'Fitted to the Kandy station on 2019 to mid-2021; within about 1 % on later years', fc || ext ? 'uncertain' : 'anchored'],
-    ['The rhythm of the day', 'Rush-hour peaks and clean nights match the station', 'timing right'],
-    ['The seasons', 'The worst months are right; the swing is too strong (3–4× vs about 2× at the station)', 'too strong'],
-    ['Which days are worse', 'About as good as a global air-quality model adjusted to the station', 'a guide'],
-    ['Where in the valley', 'An assumption a few per cent strong. Towns a few km apart usually differ by about 13 % in valleys with monitors; this map shows about 3 % and cannot say which town is higher', 'indicative'],
-    ['From outside vs made here', 'Roughly half and half over a year; from how the model is built', 'estimate'],
-    ['The 90 % range', 'Held the station’s value about 87 % of the time on later hours', 'checked'],
-  ];
-  $('#trust').innerHTML = rows.map(([a, b, c]) => `<div class="trust-row"><span><b>${a}.</b> ${b}</span><span class="lvl">${c}</span></div>`).join('');
+function renderWeather(f) {
+  const rows = [];
+  if (Number.isFinite(f.wspd)) rows.push(['Wind (10 m)', f.wspd < 0.5 ? 'calm' : `${f.wspd.toFixed(1)} m/s from the ${compass(f.wdir)}`]);
+  if (Number.isFinite(f.blh)) rows.push(['Mixing height', `${f0(f.blh)} m`]);
+  if (Number.isFinite(f.t2m)) rows.push(['Temperature', `${f.t2m.toFixed(1)} °C`]);
+  if (Number.isFinite(f.rh)) rows.push(['Humidity', `${f0(f.rh)} %`]);
+  if (Number.isFinite(f.rain)) rows.push(['Rain this hour', `${f.rain.toFixed(1)} mm`]);
+  $('#wx-kv').innerHTML = rows.length ? rows.map(([k, v]) => `<span>${k}</span><span class="num">${v}</span>`).join('')
+    : '<span>No weather is carried for this hour.</span><span></span>';
+  const calm = f.wspd < 1.5, shallow = f.blh < (parts ? parts.H_ridge_m : 300);
+  $('#wx-txt').textContent = !Number.isFinite(f.blh) ? ''
+    : calm && shallow ? 'Light wind under a shallow mixed layer: what the valley emits stays in it.'
+    : shallow ? 'A shallow mixed layer: the ridges hold the air in, though the wind moves it along the valley.'
+    : 'A deep mixed layer: the valley\'s air is stirred well above the ridges and diluted.';
+  $('#wx-cav').textContent = 'Weather from ERA5 (rain from GPM IMERG). ' + (store.meta.wind_note || '');
 }
-
-function showPoint(lat, lon, open = true) {
-  const g = store.meta.grid, f = state.cur; if (!f) return;
-  const li = nearIdx(g.lats, lat), lj = nearIdx(g.lons, lon);
-  const elev = store.static.fields.elev[li][lj];
-  if (!ZG) ZG = zoneGrid(store.static.fields.elev);
-  const z = zoneStats(f.q50, ZG, f.basin)[ZG[li * g.n_lon + lj]];
-  $('#point').innerHTML = `<b>${z.name}</b> (${Math.round(elev)} m). This hour the zone is ${relWords(z.pct)}; the valley average is `
-    + `${fmt(f.basin)} µg/m³ (90 % range ${fmt(f.basin05)}–${fmt(f.basin95)}). Not a street-level reading: within a 1 km square, `
-    + `kerbside and garden air can differ many times over${spread ? `, and places a few kilometres apart in valleys with `
-    + `monitors usually differ by about ${Math.round((spread.median_ratio - 1) * 100)} %, which this map cannot place` : ''}.`;
-  $('#dl-point').disabled = false;
-  if (open) openSheet('where');
-}
-function nearIdx(a, v) { let bi = 0, bd = Infinity; a.forEach((x, i) => { const d = Math.abs(x - v); if (d < bd) { bd = d; bi = i; } }); return bi; }
-
-function wireScenePick() {
-  const host = $('#scene'); let down = null;
-  host.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
-  host.addEventListener('pointerup', (e) => {
-    if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5 || performance.now() - down.t > 400) return;
-    const ll = scene.pick(e.clientX, e.clientY);
-    if (ll) { state.pin = { lat: ll[1], lon: ll[0] }; showPoint(ll[1], ll[0]); }
-  });
-}
-
-// ── flat-map fallback (2-D: hillshade, field, roads, wind) ─────────────
-function ensureFlat() {
-  if (flat) return flat;
-  const pan = $('#mappan'), bbox = store.meta.grid.bbox;
-  for (const id of ['hill', 'field', 'wind', 'vec']) pan.append(el('canvas', { id: `cv-${id}`, class: 'maplayer', width: MAP, height: MAP }));
-  const overlay = new Overlay($('#cv-vec'), bbox);
-  overlay.setData(store.static.layers, store.static.emission, { sources: store.static.sources, terrain: store.static.terrain });
-  const wind = new WindLayer($('#cv-wind')); wind.start();
-  const mapview = new MapView($('#mapstack'), pan, bbox, () => {});
-  mapview.onClick((e) => {
-    const [lon, lat] = mapview.screenToLatLon(e.clientX, e.clientY);
-    state.pin = { lat, lon }; showPoint(lat, lon);
-  });
-  flat = { overlay, wind, mapview, hill: $('#cv-hill').getContext('2d') };
-  return flat;
-}
-function drawFlat(f, wf, q) {
-  const F = ensureFlat();
-  F.hill.clearRect(0, 0, MAP, MAP); F.hill.drawImage(store.static.hillshade, 0, 0, MAP, MAP);
-  paintField($('#cv-field'), q, colourMode(f.q50, 'auto'), store.meta.grid.n_lat);
-  F.overlay.draw(); F.wind.setField(wf);
-}
-function setFlat(on) {
-  state.flat = on || !scene;
-  $('#flatmap').hidden = !state.flat; $('#scene').hidden = state.flat;
-  if (scene) state.flat ? scene.pause() : scene.resume();
-  if (state.cur) seek(state.year, state.gi);
-}
-
-// ── controls ───────────────────────────────────────────────────────────
-function wire() {
-  document.querySelectorAll('.key input[data-layer]').forEach((cb) => cb.addEventListener('change', () => {
-    if (scene) scene.setLayers({ [cb.dataset.layer]: cb.checked });
-  }));
-  document.querySelectorAll('[data-sheet]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); openSheet(b.dataset.sheet); }));
-  document.querySelectorAll('#sheet [data-close]').forEach((b) => b.addEventListener('click', closeSheet));
-  document.querySelectorAll('.sheet-tabs button').forEach((b) => b.addEventListener('click', () => openSheet(b.dataset.tab)));
-  $('#cam-reset').addEventListener('click', () => scene && scene.setCamera(innerWidth < 760 ? 'phone' : 'explore'));
-  $('#day-prev').addEventListener('click', () => shiftDay(-1));
-  $('#day-next').addEventListener('click', () => shiftDay(1));
-  $('#play').addEventListener('click', () => (state.playing ? stopPlay() : startPlay()));
-  document.querySelectorAll('.seg-b[data-cmp]').forEach((b) => b.addEventListener('click', () => { state.cmpTouched = true; setCmp(b.dataset.cmp); }));
-  $('#uq').addEventListener('change', (e) => { state.uq = e.target.checked; redraw(); });
-  $('#pattern-toggle').addEventListener('change', (e) => { state.pattern = e.target.checked; redraw(); });
-  $('#flat-toggle').addEventListener('change', (e) => setFlat(e.target.checked));
-  $('#dl-csv').addEventListener('click', () => state.cur && downloadFieldCSV(store, state.cur, CITY));
-  $('#dl-point').addEventListener('click', () => state.cur && state.pin && downloadPointCSV(store, state.cur, state.pin.lat, state.pin.lon, CITY));
-  $('#copy-link').addEventListener('click', async (e) => {
-    try { await navigator.clipboard.writeText(location.href); e.target.textContent = 'Link copied'; }
-    catch { e.target.textContent = 'Copy the address bar'; }
-    setTimeout(() => { e.target.textContent = 'Copy a link to this hour'; }, 1800);
-  });
-  ['#sel-year', '#sel-month', '#sel-day', '#sel-hour'].forEach((s) => $(s).addEventListener('change', () => {
-    if (syncing) return;
-    refreshPickers(true);
-    const r = AVAIL.hours.get(`${+$('#sel-year').value}-${+$('#sel-month').value}-${+$('#sel-day').value}-${+$('#sel-hour').value}`);
-    if (r) seek(r[0], r[1]);
-  }));
-  document.addEventListener('keydown', (e) => {
-    if (/SELECT|INPUT/.test(e.target.tagName) || !$('#sheet').hidden) return;
-    if (e.key === 'ArrowLeft') step(-1); else if (e.key === 'ArrowRight') step(1);
-    else if (e.key === ' ') { e.preventDefault(); state.playing ? stopPlay() : startPlay(); }
-  });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet(); });
-  let rt = null;
-  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { layoutForWidth(); strip.draw(); }, 150); });
-  buildJumps(); buildEpisodes();
-}
-function redraw() { if (state.cur) seek(state.year, state.gi); }
-async function step(d) {
-  const s = await store.getScalars(state.year);
-  const gi = state.gi + d;
-  if (gi < 0 || gi >= s.hours_utc.length) return seekTs(state.cur.tsUTC + d * 3600);
-  return seek(state.year, gi);
-}
-function setCmp(k, draw = true) {
-  state.cmp = k;
-  document.querySelectorAll('.seg-b[data-cmp]').forEach((b) => b.classList.toggle('on', b.dataset.cmp === k));
-  if (draw && state.cur && state.day) strip.set({ ...strip.d, station: act ? act.station[k] : null });
-}
-let playT = null;
-function startPlay() {
-  state.playing = true; $('#play').classList.add('on'); $('#play').textContent = 'Pause';
-  playT = setInterval(() => {
-    const d = state.day; if (!d) return;
-    const k = (d.cur + 1) % d.gis.length; seek(d.year, d.gis[k]);
-  }, 1100);
-}
-function stopPlay() { state.playing = false; clearInterval(playT); const b = $('#play'); if (b) { b.classList.remove('on'); b.textContent = 'Play the day'; } }
-
-function openSheet(tab) {
-  $('#sheet').hidden = false;
-  document.querySelectorAll('.sheet-tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
-  document.querySelectorAll('.sheet-body [data-pane]').forEach((p) => { p.hidden = p.dataset.pane !== tab; });
-  if (tab === 'when') requestAnimationFrame(() => { timeline._fit && timeline._fit(); timeline.draw(); });
-}
-function closeSheet() { $('#sheet').hidden = true; }
 
 function fillStatic() {
-  $('#integrity').textContent = store.meta.integrity || '';
-  const ul = $('#credits'); ul.innerHTML = '';
-  for (const [what, who] of store.meta.credits || []) ul.append(el('li', {}, `${what}: ${who}`));
-  $('#wind-src').textContent = (store.meta.wind_note || CITY.windCaveat || '') + ' Shown as moving streaks near the ground.';
-  if (act) {
-    $('#traffic-src').textContent = act.traffic_source + ' On Sundays the movers are thinned by the drop in PM2.5 the station measures at each hour, a lower bound on the drop in traffic.';
-    const r = act.station_ratios['morning rush 06-09'], w = act.station_ratios['whole day'];
-    $('#station-src').textContent = `${act.station_source} Sunday ÷ weekday: morning rush ${r.ratio.toFixed(2)} [${r.lo.toFixed(2)}, ${r.hi.toFixed(2)}], whole day ${w.ratio.toFixed(2)} [${w.lo.toFixed(2)}, ${w.hi.toFixed(2)}], over ${r.months} months. Drawn on the day strip as a dashed line, shape only.`;
+  const lm = store.meta.landmarks.filter((m) => m.k !== 'sensor');
+  for (const id of ['#town-a', '#town-b']) $(id).innerHTML = lm.map((m) => `<option>${m.n}</option>`).join('');
+  $('#town-a').value = 'Kandy'; $('#town-b').value = 'Peradeniya';
+  $('#episodes').innerHTML += store.meta.episodes.map((e) => `<option value="${e.id}">${e.title}</option>`).join('');
+  $('#d-tier').textContent = store.meta.tier_note || '';
+  $('#d-integrity').textContent = store.meta.integrity || '';
+  $('#d-credits').innerHTML = (store.meta.credits || []).map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
+  const sc = $('#c-scale');
+  for (const w of [15, 35, 75]) {
+    const d = document.createElement('span'); d.className = 'who'; d.style.left = (w / SCALE_MAX * 100) + '%'; d.textContent = w; sc.append(d);
   }
+  $('#date').min = `${store.meta.years[0]}-01-01`;
 }
 
-// notable hours: scan the loaded year
-function buildJumps() {
-  const box = $('#jumps');
-  const inYear = (fn) => async () => {
-    const y = state.year, s = await store.getScalars(y); let best = null;
-    for (let i = 0; i < s.hours_utc.length; i++) { const c = fn(s, i); if (c != null && (!best || c > best.c)) best = { c, i }; }
-    if (best) { await seek(y, best.i); closeSheet(); }
-  };
-  [['Worst hour of the year', inYear((s, i) => s.basin[i])],
-   ['Cleanest hour of the year', inYear((s, i) => -Math.max(s.basin[i], 0))],
-   ['Wettest hour', inYear((s, i) => (s.rain && s.rain[i] != null ? s.rain[i] : null))],
-   ['Shallowest, calmest air', inYear((s, i) => (s.blh[i] > 0 ? -(s.blh[i] * Math.max(s.wspd[i], 0.05)) : null))],
-  ].forEach(([t, fn]) => { const b = el('button', {}, t); b.addEventListener('click', fn); box.append(b); });
+// ── interaction ─────────────────────────────────────────────────────────────────────────────────────────────
+function setTab(tab) {
+  st.tab = tab;
+  $$('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+  $$('.pane').forEach((p) => p.classList.toggle('on', p.id === `p-${tab}`));
+  if (st.f) render();
 }
-function buildEpisodes() {
-  const box = $('#episodes');
-  for (const ep of store.meta.episodes || []) {
-    const b = el('button', {}, ep.title);
-    b.addEventListener('click', async () => {
-      $('#episode-card').innerHTML = `<p>${ep.note}</p><p class="src">Source: ${ep.source}</p>`;
-      await seekLocal(ep.ts);
-    });
-    box.append(b);
+function pick(lat, lon) {
+  st.pick = { lat, lon };
+  if (valley) valley.setPin(lat, lon);
+  if (st.tab !== 'where') setTab('where'); else render();
+}
+async function stepHour(k) {
+  const s = scalars(), gi = st.gi + k;
+  if (gi >= 0 && gi < s.hours_utc.length) return seek(st.year, gi);
+  if (st.year === STORE_FCST) return play(false);
+  const ys = store.meta.years, yi = ys.indexOf(st.year) + Math.sign(k);
+  if (yi < 0 || yi >= ys.length) return play(false);
+  const s2 = await store.getScalars(ys[yi]);
+  return seek(ys[yi], k > 0 ? 0 : s2.hours_utc.length - 1);
+}
+function play(on) {
+  st.playing = on; $('#play').textContent = on ? '❚❚' : '▶'; $('#play').setAttribute('aria-label', on ? 'Pause' : 'Play the day');
+  clearInterval(st.timer);
+  if (on) st.timer = setInterval(() => stepHour(1), 900);
+}
+async function goLatest() {
+  $('#latest').disabled = true;
+  try { if (!store.forecast) await store.initForecast(); } catch (e) { console.warn('forecast tier off:', e); }
+  $('#latest').disabled = false;
+  if (store.forecast) {
+    const h = store.forecast.hours, now = Date.now() / 1000;
+    return seek(STORE_FCST, nearestIdx(h, Math.min(Math.max(now, h[0]), h[h.length - 1])));
   }
+  const ys = store.meta.years, s = await store.getScalars(ys[ys.length - 1]);
+  return seek(ys[ys.length - 1], s.hours_utc.length - 1);
+}
+function wire() {
+  $$('.tabs button').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+  $$('.navb[data-tab]').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+  $('#w-conf').addEventListener('change', (e) => { st.conf = e.target.checked; render(); });
+  $('#town-a').addEventListener('change', () => renderTowns(st.f));
+  $('#town-b').addEventListener('change', () => renderTowns(st.f));
+  $('#play').addEventListener('click', () => play(!st.playing));
+  $('#prev-day').addEventListener('click', () => seekTs(st.f.tsUTC - 86400));
+  $('#next-day').addEventListener('click', () => seekTs(st.f.tsUTC + 86400));
+  $('#date').addEventListener('change', (e) => {
+    if (!e.target.value) return;
+    seekTs(Date.parse(e.target.value + 'T00:00:00Z') / 1000 - LT + ltDate(st.f.tsUTC).getUTCHours() * 3600 + 1800);
+  });
+  $('#episodes').addEventListener('change', (e) => {
+    const ep = store.meta.episodes.find((x) => x.id === e.target.value);
+    if (ep) seekTs(epTs(ep));
+    e.target.value = '';
+  });
+  $('#latest').addEventListener('click', goLatest);
+  $('#day').addEventListener('click', (e) => {
+    const b = e.currentTarget.getBoundingClientRect(), fr = (e.clientX - b.left) / b.width;
+    seekTs(dayStart(st.f.tsUTC) + Math.min(23, Math.floor(fr * 24)) * 3600 + 1800);
+  });
+  $('#year').addEventListener('click', (e) => {
+    if (!daily) return;
+    const b = e.currentTarget.getBoundingClientRect(), D = daily.days;
+    const d = D[Math.min(D.length - 1, Math.max(0, Math.floor((e.clientX - b.left) / b.width * D.length)))];
+    seekTs(d[0] + ltDate(st.f.tsUTC).getUTCHours() * 3600 + 1800);
+  });
+  $('#open-about').addEventListener('click', () => $('#about').classList.add('on'));
+  $('#close-about').addEventListener('click', () => $('#about').classList.remove('on'));
+  $('#about').addEventListener('click', (e) => { if (e.target.id === 'about') $('#about').classList.remove('on'); });
+  addEventListener('keydown', (e) => {
+    const tg = e.target;
+    if (tg && tg.matches && tg.matches('input, select, textarea')) return;
+    if (e.key === 'Escape') $('#about').classList.remove('on');
+    else if (e.key === 'ArrowRight') stepHour(1);
+    else if (e.key === 'ArrowLeft') stepHour(-1);
+    else if (e.key === ' ' && !(tg && tg.matches && tg.matches('button'))) { e.preventDefault(); play(!st.playing); }
+  });
+  $('#dl-field').addEventListener('click', () => downloadFieldCSV(store, st.f, CITY));
+  $('#dl-point').addEventListener('click', () => {
+    const p = st.pick || CITY.core;
+    downloadPointCSV(store, st.f, p.lat, p.lon, CITY);
+  });
+  $('#dl-png').addEventListener('click', downloadView);
+  $('#copy-link').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(location.href); $('#copy-link').textContent = 'Link copied'; }
+    catch { $('#copy-link').textContent = 'Copy the address bar'; }
+    setTimeout(() => { $('#copy-link').textContent = 'Copy a link to this hour'; }, 1800);
+  });
 }
 
-// ── date pickers driven by what the payload holds ───────────────────────
-const AVAIL = { hours: new Map(), days: new Map(), years: [] };
-function yearKeys() { return store.forecast ? [...store.meta.years, STORE_FCST] : [...store.meta.years]; }
-function parts(ts) { const d = lt(ts); return { Y: d.getUTCFullYear(), M: d.getUTCMonth() + 1, D: d.getUTCDate(), H: d.getUTCHours(), mi: d.getUTCMinutes() }; }
-async function buildAvailability() {
-  AVAIL.hours.clear(); AVAIL.days.clear();
-  for (const yk of yearKeys()) {
-    const s = await store.getScalars(yk), isF = yk === STORE_FCST;
-    for (let i = 0; i < s.hours_utc.length; i++) {
-      const { Y, M, D, H, mi } = parts(s.hours_utc[i]);
-      AVAIL.hours.set(`${Y}-${M}-${D}-${H}`, [yk, i, isF, mi]);
-      const r = AVAIL.days.get(`${Y}-${M}-${D}`) || { fcst: false }; r.fcst ||= isF; AVAIL.days.set(`${Y}-${M}-${D}`, r);
+function downloadView() {
+  const src = valley ? valley.snapshot() : flatCv, W = src.width, H = src.height;
+  const out = document.createElement('canvas'); out.width = W; out.height = H + Math.round(H / 14);
+  const c = out.getContext('2d');
+  c.fillStyle = '#0f0d0b'; c.fillRect(0, 0, out.width, out.height); c.drawImage(src, 0, 0);
+  const f = st.f, lt = ltDate(f.tsUTC).toISOString().slice(0, 16).replace('T', ' ');
+  c.fillStyle = '#f2e9dc'; c.font = `${Math.round(H / 42)}px Inter, sans-serif`;
+  c.fillText(`Kandy PM2.5 · ${lt} Sri Lanka time · valley average ${f1(f.basin)} µg/m³ (90 % range ${f0(f.basin05)}–${f0(f.basin95)})`, 16, H + H / 34);
+  c.fillStyle = 'rgba(242,233,220,.6)'; c.font = `${Math.round(H / 60)}px Inter, sans-serif`;
+  c.fillText('Research reconstruction. Level scaled to the CEA Kandy station; the within-valley pattern is physics, not measured.', 16, H + H / 17);
+  const a = document.createElement('a'); a.href = out.toDataURL('image/png');
+  a.download = `${CITY.downloadPrefix}_${lt.replace(/[: ]/g, '')}.png`; a.click();
+}
+
+// ── 2-D fallback (no WebGL): the 16x16 field drawn smooth, with the town names ─────────────────────────────
+function drawFlat() {
+  const cv = flatCv, w = innerWidth, h = innerWidth < 760 ? Math.max(300, innerHeight * 0.52) : innerHeight;
+  const dpr = Math.min(devicePixelRatio, 2); cv.width = w * dpr; cv.height = h * dpr;
+  cv.style.width = w + 'px'; cv.style.height = h + 'px';
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#0f0d0b'; ctx.fillRect(0, 0, w, h);
+  const g = store.meta.grid, side = Math.min(w, h) * 0.86, x0 = (w - side) / 2, y0 = (h - side) / 2;
+  const tmp = document.createElement('canvas'); tmp.width = g.n_lon; tmp.height = g.n_lat;
+  const tc = tmp.getContext('2d'), im = tc.createImageData(g.n_lon, g.n_lat);
+  for (let r = 0; r < g.n_lat; r++) for (let c = 0; c < g.n_lon; c++) {
+    const [rgb, a] = pmColour(st.f.q50[r * g.n_lon + c]), o = ((g.n_lat - 1 - r) * g.n_lon + c) * 4;
+    im.data.set([rgb[0], rgb[1], rgb[2], 80 + 175 * a], o);
+  }
+  tc.putImageData(im, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  if (store.static.hillshade) { ctx.globalAlpha = 0.55; ctx.drawImage(store.static.hillshade, x0, y0, side, side); ctx.globalAlpha = 1; }
+  ctx.drawImage(tmp, x0, y0, side, side);
+  const env = st.env;
+  if (st.tab === 'where' && st.conf && env) {            // the same agreement colours as the 3-D overlay
+    const oc = tc.createImageData(g.n_lon, g.n_lat);
+    for (let r = 0; r < g.n_lat; r++) for (let c = 0; c < g.n_lon; c++) {
+      const i = r * g.n_lon + c, o = ((g.n_lat - 1 - r) * g.n_lon + c) * 4;
+      const u = Math.max(0, (env.up[i] - 0.85) / 0.15), d = Math.max(0, (env.dn[i] - 0.85) / 0.15);
+      const m = Math.min(1, Math.max(0, (Math.abs(env.mag[i]) - 3) / 10));
+      oc.data.set(u >= d ? [232, 163, 90] : [143, 199, 178], o); oc.data[o + 3] = 200 * Math.max(u, d) * m;
     }
+    tc.putImageData(oc, 0, 0); ctx.drawImage(tmp, x0, y0, side, side);
   }
-  AVAIL.years = [...new Set([...AVAIL.days.keys()].map((k) => +k.split('-')[0]))].sort((a, b) => a - b);
+  cv._geo = { x0, y0, side };
+  const [lo0, la0, lo1, la1] = g.bbox;
+  ctx.font = '12px Inter, sans-serif'; ctx.fillStyle = '#f2e9dc';
+  for (const m of store.meta.landmarks.filter((x) => x.k !== 'sensor')) {
+    const x = x0 + (m.c[0] - lo0) / (lo1 - lo0) * side, y = y0 + (1 - (m.c[1] - la0) / (la1 - la0)) * side;
+    ctx.beginPath(); ctx.arc(x, y, 2.5, 0, 7); ctx.fill(); ctx.fillText(m.n, x + 6, y + 4);
+  }
 }
-const dayRec = (Y, M, D) => AVAIL.days.get(`${Y}-${M}-${D}`);
-const monthHas = (Y, M) => { for (let d = 1; d <= 31; d++) if (dayRec(Y, M, d)) return true; return false; };
-function opt(v, label, dis = false) { const o = el('option', { value: String(v) }, label); o.disabled = dis; return o; }
-function refreshPickers(keep) {
-  const yS = $('#sel-year'), mS = $('#sel-month'), dS = $('#sel-day'), hS = $('#sel-hour');
-  const wY = keep ? +yS.value : NaN, wM = keep ? +mS.value : NaN, wD = keep ? +dS.value : NaN, wH = keep ? +hS.value : NaN;
-  const ext = (store.meta.tiers || {}).extension || [];
-  yS.innerHTML = '';
-  for (const y of AVAIL.years) {
-    let f = false; for (let m = 1; m <= 12 && !f; m++) for (let d = 1; d <= 31; d++) { const r = dayRec(y, m, d); if (r && r.fcst) { f = true; break; } }
-    yS.append(opt(y, `${y}${f ? ' ▸' : ext.includes(y) ? ' (modelled)' : ''}`));
-  }
-  yS.value = AVAIL.years.includes(wY) ? wY : AVAIL.years[AVAIL.years.length - 1];
-  const Y = +yS.value;
-  mS.innerHTML = ''; for (let m = 1; m <= 12; m++) mS.append(opt(m, MONTHS[m - 1], !monthHas(Y, m)));
-  let M = monthHas(Y, wM) ? wM : [...Array(12).keys()].map((i) => 12 - i).find((m) => monthHas(Y, m)) || 1; mS.value = M;
-  const nd = new Date(Date.UTC(Y, M, 0)).getUTCDate();
-  dS.innerHTML = ''; for (let d = 1; d <= nd; d++) { const r = dayRec(Y, M, d); dS.append(opt(d, r && r.fcst ? `${d} ▸` : String(d), !r)); }
-  let D = dayRec(Y, M, wD) ? wD : [...Array(nd).keys()].map((i) => nd - i).find((d) => dayRec(Y, M, d)) || 1; dS.value = D;
-  hS.innerHTML = '';
-  for (let h = 0; h < 24; h++) {
-    const r = AVAIL.hours.get(`${Y}-${M}-${D}-${h}`);
-    hS.append(opt(h, `${String(h).padStart(2, '0')}:${r ? String(r[3]).padStart(2, '0') : CITY.minuteLabel}${r && r[2] ? ' ▸' : ''}`, !r));
-  }
-  hS.value = AVAIL.hours.has(`${Y}-${M}-${D}-${wH}`) ? wH : ([...Array(24).keys()].find((h) => AVAIL.hours.has(`${Y}-${M}-${D}-${h}`)) ?? 0);
-}
-let syncing = false;
-function syncPickers(ts) {
-  if (!AVAIL.years.length) return;
-  syncing = true;
-  const { Y, M, D, H } = parts(ts);
-  $('#sel-year').value = Y; $('#sel-month').value = M; $('#sel-day').value = D; $('#sel-hour').value = H;
-  refreshPickers(true);
-  syncing = false;
+function flatPick(e) {
+  const gg = flatCv._geo, b = flatCv.getBoundingClientRect(), [lo0, la0, lo1, la1] = store.meta.grid.bbox;
+  const u = (e.clientX - b.left - gg.x0) / gg.side, v = 1 - (e.clientY - b.top - gg.y0) / gg.side;
+  if (u >= 0 && u <= 1 && v >= 0 && v <= 1) pick(la0 + v * (la1 - la0), lo0 + u * (lo1 - lo0));
 }
 
-// ── deep links: #t=<unix>&uq=1&pat=0 ───────────────────
+// ── links: #t=<UTC seconds>&tab=air|where|weather|data&p=lat,lon (v2's #sheet=when|where|data still opens) ─
 let writing = false;
-function writeHash(f) {
+function writeHash() {
   const p = new URLSearchParams();
-  p.set('t', String(f.tsUTC));
-  if (state.uq) p.set('uq', '1');
-  if (!state.pattern) p.set('pat', '0');
+  p.set('t', String(st.f.tsUTC));
+  if (st.tab !== 'air') p.set('tab', st.tab);
+  if (st.pick) p.set('p', `${st.pick.lat.toFixed(4)},${st.pick.lon.toFixed(4)}`);
   const h = `#${p}`;
   if (h === location.hash) return;
   writing = true; history.replaceState(null, '', h); setTimeout(() => { writing = false; }, 0);
 }
 async function restoreFromHash() {
   const p = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const tab = p.get('tab') || ({ when: 'air', where: 'where', data: 'data' })[p.get('sheet')];
+  if (['air', 'where', 'weather', 'data'].includes(tab)) setTab(tab);
+  const pp = (p.get('p') || '').split(',').map(Number);
+  if (pp.length === 2 && pp.every(Number.isFinite)) { st.pick = { lat: pp[0], lon: pp[1] }; if (valley) valley.setPin(pp[0], pp[1]); }
   const t = Number(p.get('t'));
-  if (p.get('uq') === '1') { state.uq = true; $('#uq').checked = true; }
-  if (p.get('pat') === '0') { state.pattern = false; $('#pattern-toggle').checked = false; }
-  // a link can open the sheet on one pane (#sheet=where), e.g. to share the town-to-town answer
-  if (['when', 'where', 'data'].includes(p.get('sheet'))) setTimeout(() => openSheet(p.get('sheet')), 0);
   if (!p.get('t') || !Number.isFinite(t)) return false;
+  // a link past the end of the record points into the forecast tier, which loads on demand
+  const lastDay = daily ? daily.days[daily.days.length - 1][0] : Infinity;
+  if (t > lastDay + 86400 && !store.forecast) { try { await store.initForecast(); } catch { /* tier off */ } }
   return seekTs(t);
 }
 
