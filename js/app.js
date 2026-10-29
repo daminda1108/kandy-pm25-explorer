@@ -2,18 +2,18 @@
 // One scene, three questions: what is the air like now (3-D valley + one sentence), why does it change through the
 // day (the day strip), how much of it is ours (the split bar). Everything else lives in the sheet. The engine
 // (store.js, field.js) is untouched; every number shown comes from store.field() exactly as before.
-import { $, el, fmt, clamp, compass, getJSON } from './util.js?v=1793237379';
-import { activeCity } from './cities.js?v=1793237379';
-import { Store, STORE_FCST } from './store.js?v=1793237379';
-import { colourMode, paintField } from './field.js?v=1793237379';
-import { WindLayer, windWords } from './wind.js?v=1793237379';
-import { Timeline } from './timeline.js?v=1793237379';
-import { Overlay } from './overlay.js?v=1793237379';
-import { MapView } from './mapview.js?v=1793237379';
-import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793237379';
-import { ValleyScene, webglOK, pmCss } from './scene.js?v=1793237379';
-import { DayStrip } from './daystrip.js?v=1793237379';
-import { zoneGrid, zoneStats, relWords, townAnswer } from './zones.js?v=1793237379';
+import { $, el, fmt, clamp, compass, getJSON } from './util.js?v=1793238063';
+import { activeCity } from './cities.js?v=1793238063';
+import { Store, STORE_FCST } from './store.js?v=1793238063';
+import { colourMode, paintField } from './field.js?v=1793238063';
+import { WindLayer, windWords } from './wind.js?v=1793238063';
+import { Timeline } from './timeline.js?v=1793238063';
+import { Overlay } from './overlay.js?v=1793238063';
+import { MapView } from './mapview.js?v=1793238063';
+import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793238063';
+import { ValleyScene, webglOK, pmCss } from './scene.js?v=1793238063';
+import { DayStrip } from './daystrip.js?v=1793238063';
+import { zoneGrid, zoneStats, relWords, townAnswer } from './zones.js?v=1793238063';
 
 const CITY = activeCity();
 const LT = CITY.tzOffsetH * 3600;
@@ -493,6 +493,8 @@ async function restoreFromHash() {
   const t = Number(p.get('t'));
   if (p.get('uq') === '1') { state.uq = true; $('#uq').checked = true; }
   if (p.get('pat') === '0') { state.pattern = false; $('#pattern-toggle').checked = false; }
+  // a link can open the sheet on one pane (#sheet=where), e.g. to share the town-to-town answer
+  if (['when', 'where', 'data'].includes(p.get('sheet'))) setTimeout(() => openSheet(p.get('sheet')), 0);
   if (!p.get('t') || !Number.isFinite(t)) return false;
   return seekTs(t);
 }
