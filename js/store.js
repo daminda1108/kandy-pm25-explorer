@@ -288,7 +288,7 @@ export class Store {
       const P = c.byHour[lh];
 
       // recent (analysis) hours carry the CEA network's day-to-day timing as a separate factor (live.json
-      // nowcast.net_factor, F.163); the stored values stay raw so the runner can never compound it
+      // nowcast.net_factor, F.165); the stored values stay raw so the runner can never compound it
       const nf = kind === 'recent' && Array.isArray(it.net_factor) ? (it.net_factor[i] || 1) : 1;
       const T = it.fcst[i] * nf, B = it.B[i] * nf, lo = it.lo[i] * nf, hi = it.hi[i] * nf;
       let pmin = Infinity, pmax = -Infinity, basin = 0;

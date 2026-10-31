@@ -68,7 +68,7 @@ MEDELLIN_LIVE = "https://daminda1108.github.io/medellin-pm25/data/live.json"
 REGION_BOX = (6.9, 80.3, 7.7, 81.0)      # lat1, lon1, lat2, lon2 (regional, not basin)
 MAX_ISSUANCES = 60
 OBS_WINDOW_D = 45
-# NETWORK TIMING (2026-10-31, framework ledger F.163): the CEA AirShare IQAir towns within 150 km of Kandy carry the
+# NETWORK TIMING (2026-10-31, framework ledger F.165): the CEA AirShare IQAir towns within 150 km of Kandy carry the
 # day-to-day timing of Kandy's PM2.5 (held-out anomaly r 0.79 vs 0.18 for the driver model). Public routes, no key.
 # Fetched at most every NET_REFRESH_H hours (5 requests), so the hourly Action stays light on CEA's server; the
 # stored copy is used when a fetch fails. Data are CEA's; cite the Central Environmental Authority.
@@ -416,7 +416,7 @@ def snapshot_assim(pack, state):
 
 def snapshot_network(state):
     """NETWORK TIMING for the recent (analysis) hours — the same construction as the 2025-26 extension
-    (framework scripts/extension_network_timing.py, F.163): on local days when >= 3 towns report, the nowcast's
+    (framework scripts/extension_network_timing.py, F.165): on local days when >= 3 towns report, the nowcast's
     within-month daily anomaly is replaced by NET_B x the median of the towns' own within-month anomalies, then each
     month is renormalised so its mean is unchanged. The stored nowcast values stay RAW; the result is written as
     state["nowcast"]["net_factor"] (one per hour) and applied by the page, so a re-run can never compound it."""
