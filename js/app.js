@@ -3,12 +3,12 @@
 // contrast-stretch label (bottom left), and a point card that follows its pin. Everything else sits in Details, closed
 // by default. The engine (store.js) is unchanged: every number comes from store.field() exactly as the QA gate checks.
 // History: v2 "the valley breathes" is git tag v2-valley-breathes; build record kandy_pm25/docs/webapp_A_build_plan_2026-10-29.md.
-import { $, $$, getJSON, compass } from './util.js?v=1793255500';
-import { activeCity } from './cities.js?v=1793255500';
-import { Store, STORE_FCST } from './store.js?v=1793255500';
-import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793255500';
-import { Valley, webglOK, pmCss, pmColour } from './valley.js?v=1793255500';
-import { envelope, verdict, cellOf, km, townAnswer } from './where.js?v=1793255500';
+import { $, $$, getJSON, compass } from './util.js?v=1793256700';
+import { activeCity } from './cities.js?v=1793256700';
+import { Store, STORE_FCST } from './store.js?v=1793256700';
+import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793256700';
+import { Valley, webglOK, pmCss, pmColour } from './valley.js?v=1793256700';
+import { envelope, verdict, cellOf, km, townAnswer } from './where.js?v=1793256700';
 
 const CITY = activeCity();
 const LT = CITY.tzOffsetH * 3600;
@@ -25,9 +25,9 @@ const STRETCH = 4;
 
 const store = new Store(CITY);
 const st = { year: null, gi: 0, f: null, tab: 'air', drawer: false, conf: false, trueScale: false, pick: null,
-             playing: false, timer: null, env: null, roads: true, water: true, urban: false, weather: false, cardAt: null };
+             playing: false, timer: null, env: null, roads: true, water: true, weather: false, cardAt: null };
 let valley = null, parts = null, daily = null, spread = null, flatCv = null, roads = null, hydro = null, ELEV = null;
-let built = null, floorElev = 480;
+let floorElev = 480;
 
 const ltDate = (ts) => new Date((ts + LT) * 1000);
 const hhmm = (ts) => { const d = ltDate(ts); return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
@@ -206,8 +206,7 @@ async function renderPoint(f) {
   const v = Math.max(f.q50[i], 0), rel = f.basin > 0.5 ? (v / f.basin - 1) * 100 : 0;
   $('#pt-val').textContent = f1(v);
   const r = $('#pt-rel'); r.textContent = `${sg(rel)} vs valley`; r.className = 'pr ' + (rel > 2 ? 'up' : rel < -2 ? 'dn' : 'q');
-  $('#pt-sub').textContent = `${f0(ELEV[i])} m · likely ${f0(Math.min(f.q05[i], v))}–${f0(Math.max(f.q95[i], v))}`
-    + (built ? ` · ${f0(builtAt(lat, lon))} % built` : '');
+  $('#pt-sub').textContent = `${f0(ELEV[i])} m · likely ${f0(Math.min(f.q05[i], v))}–${f0(Math.max(f.q95[i], v))}`;
   if (st.env) {
     const [cls, txt] = verdict(st.env, i);
     $('#pt-verdict').textContent = cls === 'up' ? 'Plausible maps: above average' : cls === 'dn' ? 'Plausible maps: below average'
@@ -421,21 +420,7 @@ function tipAt(e, html) {
   tip.style.transform = `translate(${Math.max(8, Math.min(e.clientX - tip.offsetWidth / 2, innerWidth - tip.offsetWidth - 8))}px, ${e.clientY - 34}px)`;
 }
 
-// ── layers: urban development and weather ─────────────────────────────────────────────────────────────────
-async function setUrban(on) {
-  st.urban = on; $('#urban-tg').checked = on; $('#k-urban').hidden = !on;
-  if (on && !built) {
-    built = await getJSON(`${store.base}/static/built.json`).catch(() => null);
-    if (valley && built) valley.setBuilt(built);
-  }
-  if (valley) valley.showBuilt(on); else if (st.f) drawFlat();
-  if (st.f) { renderPoint(st.f); writeHash(); }
-}
-function builtAt(lat, lon) {
-  const n = built.n, r = Math.round((lat - built.lat0) / (built.lat1 - built.lat0) * (n - 1));
-  const c = Math.round((lon - built.lon0) / (built.lon1 - built.lon0) * (n - 1));
-  return r >= 0 && r < n && c >= 0 && c < n ? built.pct[r * n + c] : NaN;
-}
+// ── layers: weather ─────────────────────────────────────────────────────────────────
 let wxSeq = 0, wxWind = null;
 async function renderWeather3d(f) {
   $('#k-wx').hidden = !st.weather;
@@ -483,7 +468,6 @@ function wire() {
   $('#water-tg').addEventListener('change', (e) => { st.water = e.target.checked; loadLayers(); writeHash(); });
   $('#w-conf').addEventListener('change', (e) => { st.conf = e.target.checked; render(); });
   $('#true-tg').addEventListener('change', (e) => setTrueScale(e.target.checked));
-  $('#urban-tg').addEventListener('change', (e) => setUrban(e.target.checked));
   $('#wx-tg').addEventListener('change', (e) => setWeather(e.target.checked));
   $('#reset-view').addEventListener('click', () => { if (valley) valley.resetView(); });
   wireDrag();
@@ -607,14 +591,6 @@ function drawFlat() {
   }
   cv._geo = { x0, y0, side };
   const P = toPx(cv._geo, ...g.bbox);
-  if (st.urban && built) {
-    const bc = document.createElement('canvas'); bc.width = built.n; bc.height = built.n;
-    const bx = bc.getContext('2d'), bi = bx.createImageData(built.n, built.n);
-    for (let r = 0; r < built.n; r++) for (let c = 0; c < built.n; c++) {
-      const o = ((built.n - 1 - r) * built.n + c) * 4; bi.data.set([237, 227, 209, Math.min(230, 3.2 * built.pct[r * built.n + c])], o);
-    }
-    bx.putImageData(bi, 0, 0); ctx.drawImage(bc, x0, y0, side, side);
-  }
   if (st.weather && wxWind) {
     ctx.strokeStyle = 'rgba(223,238,245,.9)'; ctx.lineWidth = 1.2; ctx.beginPath();
     const w = wxWind, step = Math.max(1, Math.round(w.gx / 18));
@@ -671,7 +647,6 @@ function writeHash() {
   if (st.conf) p.set('agree', '1');
   if (!st.roads) p.set('roads', '0');
   if (!st.water) p.set('water', '0');
-  if (st.urban) p.set('urban', '1');
   if (st.weather) p.set('wx', '1');
   const h = `#${p}`;
   if (h === location.hash) return;
@@ -687,7 +662,6 @@ async function restoreFromHash() {
   st.roads = p.get('roads') !== '0'; $('#roads-tg').checked = st.roads;
   st.water = p.get('water') !== '0'; $('#water-tg').checked = st.water;
   if (roads) loadLayers();
-  if ((p.get('urban') === '1') !== st.urban) setUrban(p.get('urban') === '1');
   st.weather = p.get('wx') === '1'; $('#wx-tg').checked = st.weather;
   const pp = (p.get('p') || '').split(',').map(Number);
   if (pp.length === 2 && pp.every(Number.isFinite)) { st.pick = { lat: pp[0], lon: pp[1] }; if (valley) valley.setPin(pp[0], pp[1]); }

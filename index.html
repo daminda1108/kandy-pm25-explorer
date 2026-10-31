@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/site.css?v=1793255500" />
+  <link rel="stylesheet" href="css/site.css?v=1793256700" />
   <script type="importmap">{ "imports": { "three": "./js/vendor/three.module.min.js" } }</script>
   <script>window.CITY_ID = 'kandy';</script>
 </head>
@@ -37,7 +37,6 @@
   </nav>
   <div class="pop glass" id="layers" hidden>
     <label><input type="checkbox" id="wx-tg" /> Weather: wind, rain, mixing height</label>
-    <label><input type="checkbox" id="urban-tg" /> Urban development (built-up land)</label>
     <label><input type="checkbox" id="roads-tg" checked /> Roads</label>
     <label><input type="checkbox" id="water-tg" checked /> Rivers &amp; lakes</label>
     <label><input type="checkbox" id="w-conf" /> Where the plausible maps agree</label>
@@ -52,7 +51,6 @@
     <div class="kt num"><span>5</span><span>15</span><span>35</span><span>75 µg/m³</span></div>
     <button class="kstretch" id="k-stretch" title="Switch to the true colour scale"></button>
     <div class="kline" id="k-wx" hidden></div>
-    <div class="kline" id="k-urban" hidden><i class="sw-urban"></i>Pale ground = built-up land (ESA WorldCover 2021)</div>
   </div>
 
   <!-- point details: follows its pin -->
@@ -172,6 +170,6 @@
     </article>
   </div>
 
-  <script type="module" src="js/app.js?v=1793255500"></script>
+  <script type="module" src="js/app.js?v=1793256700"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@
 // model's own floor-to-ridge contrast is a few per cent, and drawing more would show a pattern the evidence lacks.
 // A second, optional sheet shows what every plausible within-valley map agrees on (Where tab).
 import * as THREE from 'three';
-import { OrbitControls } from './vendor/OrbitControls.js?v=1793255500';
+import { OrbitControls } from './vendor/OrbitControls.js?v=1793256700';
 
 const EXAG = 2.4, SIZE = 15, HAZE_LIFT = 0.10;
 
@@ -294,22 +294,6 @@ export class Valley {
   showWater(on) { this.dirty = true; if (this.water) this.water.visible = on; }
 
   resetView() { this.dirty = true; this.cam.position.copy(this.home.pos); this.ctl.target.copy(this.home.target); this.ctl.update(); }
-
-  // URBAN DEVELOPMENT: share of built-up land per terrain cell (ESA WorldCover 2021), a pale sheet on the ground
-  setBuilt(b) { this.dirty = true;
-    if (!b || b.n !== this.n) return;
-    const g = this.ground.geometry.clone(), p = g.attributes.position, n = this.n;
-    for (let i = 0; i < p.count; i++) p.setY(i, p.getY(i) + 0.33);   // above the haze sheets, so haze does not tint it
-    const col = new Float32Array(p.count * 4);
-    for (let i = 0; i < p.count; i++) {
-      const c = i % n, r = n - 1 - Math.floor(i / n), x = b.pct[r * n + c] / 100;
-      col.set([0.98, 0.96, 0.92, Math.min(0.9, 0.35 + 2.2 * x) * (x > 0.05 ? 1 : 0) * this.edge[i]], i * 4);
-    }
-    g.setAttribute('color', new THREE.BufferAttribute(col, 4));
-    this.built = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false }));
-    this.built.renderOrder = 7; this.built.visible = false; this.scene.add(this.built);
-  }
-  showBuilt(on) { this.dirty = true; if (this.built) this.built.visible = on; }
 
   // WEATHER: terrain wind as arrows, rain as falling streaks (rate = the hour's valley rain), and the top of the mixed
   // layer as a translucent lid above the valley floor (below the ridges when the air is trapped)
