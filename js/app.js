@@ -3,12 +3,12 @@
 // contrast-stretch label (bottom left), and a point card that follows its pin. Everything else sits in Details, closed
 // by default. The engine (store.js) is unchanged: every number comes from store.field() exactly as the QA gate checks.
 // History: v2 "the valley breathes" is git tag v2-valley-breathes; build record kandy_pm25/docs/webapp_A_build_plan_2026-10-29.md.
-import { $, $$, getJSON, compass } from './util.js?v=1793258500';
-import { activeCity } from './cities.js?v=1793258500';
-import { Store, STORE_FCST } from './store.js?v=1793258500';
-import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793258500';
-import { Valley, webglOK, pmCss, pmColour } from './valley.js?v=1793258500';
-import { envelope, verdict, cellOf, km, townAnswer } from './where.js?v=1793258500';
+import { $, $$, getJSON, compass } from './util.js?v=1793259700';
+import { activeCity } from './cities.js?v=1793259700';
+import { Store, STORE_FCST } from './store.js?v=1793259700';
+import { downloadFieldCSV, downloadPointCSV } from './download.js?v=1793259700';
+import { Valley, webglOK, pmCss, pmColour } from './valley.js?v=1793259700';
+import { envelope, verdict, cellOf, km, townAnswer } from './where.js?v=1793259700';
 
 const CITY = activeCity();
 const LT = CITY.tzOffsetH * 3600;

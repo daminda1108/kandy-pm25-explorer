@@ -68,6 +68,13 @@ MEDELLIN_LIVE = "https://daminda1108.github.io/medellin-pm25/data/live.json"
 REGION_BOX = (6.9, 80.3, 7.7, 81.0)      # lat1, lon1, lat2, lon2 (regional, not basin)
 MAX_ISSUANCES = 60
 OBS_WINDOW_D = 45
+# NETWORK TIMING (2026-10-31, framework ledger F.163): the CEA AirShare IQAir towns within 150 km of Kandy carry the
+# day-to-day timing of Kandy's PM2.5 (held-out anomaly r 0.79 vs 0.18 for the driver model). Public routes, no key.
+# Fetched at most every NET_REFRESH_H hours (5 requests), so the hourly Action stays light on CEA's server; the
+# stored copy is used when a fetch fails. Data are CEA's; cite the Central Environmental Authority.
+AIRSHARE = "https://aq.cea.lk"
+NET_TOWNS = {"Rathnapura": 15, "Chilaw": 19, "Anuradhapura": 34, "Akkaraipattu": 41, "Ella": 42}   # IQAir, equipment 4
+NET_B, NET_MIN_TOWNS, NET_REFRESH_H, NET_FETCH_D, NET_KEEP_D = 0.49, 3, 6, 45, 70
 
 AQI_BP = [(0.0, 9.0, 0, 50), (9.1, 35.4, 51, 100), (35.5, 55.4, 101, 150),
           (55.5, 125.4, 151, 200), (125.5, 225.4, 201, 300), (225.5, 325.4, 301, 500)]
@@ -407,6 +414,92 @@ def snapshot_assim(pack, state):
     return True
 
 
+def snapshot_network(state):
+    """NETWORK TIMING for the recent (analysis) hours — the same construction as the 2025-26 extension
+    (framework scripts/extension_network_timing.py, F.163): on local days when >= 3 towns report, the nowcast's
+    within-month daily anomaly is replaced by NET_B x the median of the towns' own within-month anomalies, then each
+    month is renormalised so its mean is unchanged. The stored nowcast values stay RAW; the result is written as
+    state["nowcast"]["net_factor"] (one per hour) and applied by the page, so a re-run can never compound it."""
+    import time
+    net = state.get("network") or {"daily": {}, "fetched": None}
+    now = dt.datetime.now(dt.timezone.utc)
+    last = pd.Timestamp(net["fetched"]) if net.get("fetched") else None
+    # Since late October 2026 the AirShare history route answers 401 without authorisation. CEA issues an API key on
+    # registration (header CEA-API-KEY per the platform's external-API notice; confirm with CEA's documentation when the
+    # key is issued). Without the repository secret CEA_API_KEY this step makes NO requests and every factor is 1.
+    key = os.environ.get("CEA_API_KEY", "").strip()
+    if not key:
+        log("NETWORK skipped: CEA_API_KEY not set (AirShare history needs CEA authorisation)")
+    elif last is None or (now - last.to_pydatetime()).total_seconds() >= NET_REFRESH_H * 3600:
+        s = requests.Session()
+        s.headers.update({"User-Agent": "kandy-pm25-explorer/1.0 (academic research, University of Peradeniya)",
+                          "Accept": "application/json", "CEA-API-KEY": key})
+        a = (now - dt.timedelta(days=NET_FETCH_D)).strftime("%Y-%m-%d")
+        b = now.strftime("%Y-%m-%d")
+        got = 0
+        for name, lid in NET_TOWNS.items():
+            try:
+                r = s.get(AIRSHARE + "/public/sensor-data/history", timeout=60,
+                          params={"locationId": lid, "equipmentId": 4, "startTime": a, "endTime": b})
+                r.raise_for_status()
+                rows = r.json().get("result", [])
+                town = net["daily"].setdefault(name, {})
+                for x in rows:
+                    if x.get("pm2_5") is not None and float(x["pm2_5"]) > 0:
+                        town[str(x["created_at"])[:10]] = round(float(x["pm2_5"]), 2)
+                got += 1
+            except Exception as e:                                   # noqa: BLE001
+                log(f"NETWORK {name}: {e!r}")
+            time.sleep(1.0)
+        if got:
+            net["fetched"] = now.isoformat(timespec="seconds")
+        cut = (now - dt.timedelta(days=NET_KEEP_D)).strftime("%Y-%m-%d")
+        net["daily"] = {k: {d: v for d, v in t.items() if d >= cut} for k, t in net["daily"].items()}
+        log(f"NETWORK: fetched {got}/{len(NET_TOWNS)} towns")
+    state["network"] = net
+
+    nc = state.get("nowcast") or {}
+    if not nc.get("hours"):
+        return False
+    # network index: median over towns of each town's own within-month log anomaly, >= NET_MIN_TOWNS
+    an = {}
+    for name, t in net["daily"].items():
+        sr = pd.Series(t, dtype=float)
+        if sr.empty:
+            continue
+        sr.index = pd.to_datetime(sr.index)
+        lg = np.log(sr)
+        an[name] = lg - lg.groupby(sr.index.to_period("M")).transform("mean")
+    N = pd.DataFrame(an)
+    Nidx = N.median(axis=1).where(N.notna().sum(axis=1) >= NET_MIN_TOWNS).dropna() if len(N) else pd.Series(dtype=float)
+    # the nowcast's own daily anomaly, by local day
+    t_loc = pd.to_datetime(pd.Series(nc["hours"]), unit="s", utc=True).dt.tz_convert("Asia/Colombo")
+    day = t_loc.dt.tz_localize(None).dt.normalize()
+    q = pd.Series(nc["fcst"], dtype=float)
+    dm = q.groupby(day.to_numpy()).mean()
+    dm = dm[dm > 0]
+    per = dm.index.to_period("M")
+    lgF = np.log(dm)
+    aF = lgF - lgF.groupby(per).transform("mean")
+    n = Nidx.reindex(dm.index)
+    cov = n.notna()
+    nc_c = n - n.groupby(per).transform("mean")
+    a_new = (NET_B * nc_c + aF.where(cov).groupby(per).transform("mean")).where(cov, aF)
+    f_day = np.exp(a_new - aF)
+    f = day.map(f_day).fillna(1.0).to_numpy()
+    mon = day.dt.to_period("M").to_numpy()
+    k = pd.Series(q.to_numpy()).groupby(mon).sum() / pd.Series(q.to_numpy() * f).groupby(mon).sum()
+    f = f * pd.Series(mon).map(k).to_numpy()
+    nc["net_factor"] = [round(float(x), 4) for x in f]
+    net["covered_days"] = int(cov.sum())
+    net["note"] = ("Day-to-day ups and downs of the recent (analysis) hours follow the CEA air-quality network "
+                   f"towns within 150 km ({', '.join(NET_TOWNS)}) on days when at least {NET_MIN_TOWNS} report; "
+                   "monthly means unchanged. Data: Central Environmental Authority (aq.cea.lk).")
+    log(f"NETWORK: {int(cov.sum())}/{len(dm)} nowcast days follow the network; factors "
+        f"{float(np.min(f)):.2f}-{float(np.max(f)):.2f}")
+    return True
+
+
 def verify_against_analysis(state):
     """Fold every forecast hour that the analysis tier has since covered into the
     adaptive-conformal state.
@@ -493,6 +586,10 @@ def main():
         snapshot_assim(pack, state)
     except Exception as e:
         log(f"NOWCAST step failed: {e!r}")
+    try:
+        snapshot_network(state)
+    except Exception as e:
+        log(f"NETWORK step failed: {e!r}")
     try:
         snapshot_regional(pack, state)
     except Exception as e:

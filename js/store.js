@@ -6,7 +6,7 @@
 // zero-ground-data tier (Tv,Tv05,Tv95 — Medellín), the SAME P_local reconstructs
 // that tier with the alternative anchors (identical pattern by construction).
 
-import { getJSON, getGzip } from './util.js?v=1793258500';
+import { getJSON, getGzip } from './util.js?v=1793259700';
 
 // synthetic "year" key for the forecast tier (see initForecast)
 export const STORE_FCST = 'F';
@@ -287,7 +287,10 @@ export class Store {
       if (!c) return null;
       const P = c.byHour[lh];
 
-      const T = it.fcst[i], B = it.B[i], lo = it.lo[i], hi = it.hi[i];
+      // recent (analysis) hours carry the CEA network's day-to-day timing as a separate factor (live.json
+      // nowcast.net_factor, F.163); the stored values stay raw so the runner can never compound it
+      const nf = kind === 'recent' && Array.isArray(it.net_factor) ? (it.net_factor[i] || 1) : 1;
+      const T = it.fcst[i] * nf, B = it.B[i] * nf, lo = it.lo[i] * nf, hi = it.hi[i] * nf;
       let pmin = Infinity, pmax = -Infinity, basin = 0;
       for (let p = 0; p < npx; p++) {
         if (P[p] < pmin) pmin = P[p];

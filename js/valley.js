@@ -4,7 +4,7 @@
 // model's own floor-to-ridge contrast is a few per cent, and drawing more would show a pattern the evidence lacks.
 // A second, optional sheet shows what every plausible within-valley map agrees on (Where tab).
 import * as THREE from 'three';
-import { OrbitControls } from './vendor/OrbitControls.js?v=1793258500';
+import { OrbitControls } from './vendor/OrbitControls.js?v=1793259700';
 
 const EXAG = 2.4, SIZE = 15, HAZE_LIFT = 0.10;
 

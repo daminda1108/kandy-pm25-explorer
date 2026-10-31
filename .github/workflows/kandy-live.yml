@@ -27,6 +27,7 @@ jobs:
       - name: run live forecast
         env:
           WAQI_TOKEN: ${{ secrets.WAQI_TOKEN }}
+          CEA_API_KEY: ${{ secrets.CEA_API_KEY }}   # optional; network timing for recent hours (F.163)
         run: python live/kandy_live.py
       - name: commit state
         run: |
